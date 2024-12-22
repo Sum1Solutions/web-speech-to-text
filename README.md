@@ -19,7 +19,7 @@ A simple, browser-based speech recognition application built with React and the 
 
 1. Clone the repository:
    ```bash
-   git clone [your-repo-url]
+   git clone https://github.com/Sum1Solutions/web-speech-to-text.git
    cd web-speech-to-text
    ```
 
