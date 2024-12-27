@@ -78,7 +78,7 @@ const SpeechToText = () => {
     };
 
     recognitionRef.current = recognition;
-  }, []);
+  }, [autoCopy]);
 
   const startListening = () => {
     if (recognitionRef.current) {
