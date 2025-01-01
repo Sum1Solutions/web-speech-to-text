@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { useTheme } from '../theme/ThemeContext';
 import SpeechServiceFactory, { SpeechServiceType } from '../services/SpeechServiceFactory';
+import Modal from './Modal';
 
 const MAX_VISIBLE_BUBBLES = 10;
 
@@ -17,6 +18,7 @@ const SpeechToText = () => {
   const [serviceInfo, setServiceInfo] = useState([]);
   const [showSetupInstructions, setShowSetupInstructions] = useState(false);
   const [selectedService, setSelectedService] = useState(null);
+  const [isCheckingLocalService, setIsCheckingLocalService] = useState(false);
   const processedResultsRef = useRef(new Set());
   const textareaRef = useRef(null);
   const transcriptsContainerRef = useRef(null);
@@ -98,11 +100,44 @@ const SpeechToText = () => {
     });
   }, [autoCopy, clearTranscripts, copyToClipboard, stopListening]);
 
-  // Initialize service info
+  // Function to check if local service is available
+  const checkLocalService = useCallback(async () => {
+    try {
+      const response = await fetch('http://localhost:11434/api/health');
+      return response.ok;
+    } catch (error) {
+      return false;
+    }
+  }, []);
+
+  // Periodically check for local service when it's selected
+  useEffect(() => {
+    let interval;
+    if (serviceType === SpeechServiceType.LOCAL_SPEECH && !isCheckingLocalService) {
+      interval = setInterval(async () => {
+        const isAvailable = await checkLocalService();
+        if (isAvailable) {
+          setShowSetupInstructions(false);
+          clearInterval(interval);
+          await SpeechServiceFactory.initService(serviceType);
+        }
+      }, 2000); // Check every 2 seconds
+    }
+    return () => {
+      if (interval) clearInterval(interval);
+    };
+  }, [serviceType, checkLocalService, isCheckingLocalService]);
+
+  // Load service info
   useEffect(() => {
     const info = SpeechServiceFactory.getServiceInfo();
     setServiceInfo(info || []);
-    setSelectedService(info.find(s => s.id === SpeechServiceType.WEB_SPEECH));
+    if (info && info.length > 0) {
+      const webSpeechService = info.find(s => s.id === SpeechServiceType.WEB_SPEECH);
+      if (webSpeechService) {
+        setSelectedService(webSpeechService);
+      }
+    }
   }, []);
 
   // Initialize speech service
@@ -128,8 +163,16 @@ const SpeechToText = () => {
     setSelectedService(service);
     
     if (service.setupRequired) {
-      setShowSetupInstructions(true);
-      setServiceType(SpeechServiceType.WEB_SPEECH); // Keep using web speech until setup is complete
+      const isAvailable = await checkLocalService();
+      if (!isAvailable) {
+        setShowSetupInstructions(true);
+        setServiceType(SpeechServiceType.WEB_SPEECH); // Keep using web speech until setup is complete
+        setIsCheckingLocalService(true);
+      } else {
+        setShowSetupInstructions(false);
+        setServiceType(newType);
+        await SpeechServiceFactory.initService(newType);
+      }
     } else {
       setShowSetupInstructions(false);
       setServiceType(newType);
@@ -222,18 +265,26 @@ const SpeechToText = () => {
           </label>
           <div className="relative group">
             <button
-              className={styles.info.button + " " + styles.info.buttonColor}
-              aria-label="Information"
+              className={`${styles.info.button} ${styles.info.buttonColor} flex items-center gap-1`}
+              aria-label="Help"
               onClick={() => setShowInfo(!showInfo)}
             >
-              ℹ️
+              <svg 
+                xmlns="http://www.w3.org/2000/svg" 
+                viewBox="0 0 24 24" 
+                fill="currentColor" 
+                className="w-5 h-5"
+              >
+                <path fillRule="evenodd" d="M2.25 12c0-5.385 4.365-9.75 9.75-9.75s9.75 4.365 9.75 9.75-4.365 9.75-9.75 9.75S2.25 17.385 2.25 12zm11.378-3.917c-.89-.777-2.366-.777-3.255 0a.75.75 0 01-.988-1.129c1.454-1.272 3.776-1.272 5.23 0 1.513 1.324 1.513 3.518 0 4.842a3.75 3.75 0 01-.837.552c-.676.328-1.028.774-1.028 1.152v.75a.75.75 0 01-1.5 0v-.75c0-1.279 1.06-2.107 1.875-2.502.182-.088.351-.199.503-.331.83-.727.83-1.857 0-2.584zM12 18a.75.75 0 100-1.5.75.75 0 000 1.5z" clipRule="evenodd" />
+              </svg>
+              Help
             </button>
             <div className={`${showInfo ? 'block' : 'hidden group-hover:block'} ${styles.tooltip.infoContainer}`}>
               <ul className="space-y-2">
                 <li>• Click the button below to start/stop speech recognition</li>
                 <li>• Say "stop listening" to pause, or "clear clear" to reset</li>
                 <li>• Enable "Auto-copy" to automatically copy new text</li>
-                <li>• Use the 📋 button to manually copy all text</li>
+                <li>• Use the clipboard button to manually copy all text</li>
               </ul>
             </div>
           </div>
@@ -273,13 +324,27 @@ const SpeechToText = () => {
         />
         <div className="absolute right-2 bottom-2 group">
           <button
-            onClick={() => copyToClipboard()}
-            className="p-2 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
+            onClick={() => copyToClipboard(collectedText)}
+            className={`p-2 rounded-full transition-colors ${
+              isDarkMode 
+                ? 'text-gray-400 hover:text-gray-200 hover:bg-gray-800' 
+                : 'text-gray-500 hover:text-gray-700 hover:bg-gray-100'
+            }`}
             title="Copy to clipboard"
           >
-            📋
+            <svg 
+              xmlns="http://www.w3.org/2000/svg" 
+              viewBox="0 0 24 24" 
+              fill="currentColor" 
+              className="w-5 h-5"
+            >
+              <path fillRule="evenodd" d="M17.663 3.118c.225.015.45.032.673.05C19.876 3.298 21 4.604 21 6.109v9.642a3 3 0 01-3 3V16.5c0-5.922-4.576-10.775-10.384-11.217.324-1.132 1.3-2.01 2.548-2.114.224-.019.448-.036.673-.051A3 3 0 0113.5 1.5H15a3 3 0 012.663 1.618zM12 4.5A1.5 1.5 0 0113.5 3H15a1.5 1.5 0 011.5 1.5H12z" clipRule="evenodd" />
+              <path d="M3 8.625c0-1.036.84-1.875 1.875-1.875h.375A3.75 3.75 0 019 10.5v1.875c0 1.036.84 1.875 1.875 1.875h1.875A3.75 3.75 0 0116.5 18v2.625c0 1.035-.84 1.875-1.875 1.875h-9.75A1.875 1.875 0 013 20.625v-12z" />
+            </svg>
           </button>
-          <div className={styles.tooltip.container}>
+          <div className={`absolute bottom-full right-0 mb-2 ${
+            isDarkMode ? 'bg-gray-800 text-gray-200' : 'bg-white text-gray-800'
+          } px-2 py-1 rounded shadow-lg text-sm whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity`}>
             Copy all text to clipboard
           </div>
         </div>
@@ -290,17 +355,27 @@ const SpeechToText = () => {
         <div className="flex items-center gap-4">
           <label className={`${styles.controls.checkboxLabel} group relative ${styles.controls.checkboxText}`}>
             <select
-              className="form-select rounded-md bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600"
+              className={`form-select rounded-md px-3 py-2 appearance-none cursor-pointer transition-colors ${
+                isDarkMode 
+                  ? 'bg-gray-800 text-gray-200 border-gray-700 hover:border-gray-600' 
+                  : 'bg-white text-gray-800 border-gray-300 hover:border-gray-400'
+              } focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent`}
               value={serviceType}
               onChange={handleServiceChange}
             >
               {serviceInfo.map(service => (
-                <option key={service.id} value={service.id}>
+                <option 
+                  key={service.id} 
+                  value={service.id}
+                  className={isDarkMode ? 'bg-gray-800' : 'bg-white'}
+                >
                   {service.name}
                 </option>
               ))}
             </select>
-            <div className={styles.tooltip.container + " w-64"}>
+            <div className={`${styles.tooltip.container} w-64 ${
+              isDarkMode ? 'bg-gray-800 text-gray-200' : 'bg-white text-gray-800'
+            }`}>
               {serviceInfo.find(s => s.id === serviceType)?.description}
             </div>
           </label>
@@ -341,19 +416,57 @@ const SpeechToText = () => {
             Clear all transcribed text and speech bubbles
           </div>
         </div>
-        {showSetupInstructions && selectedService && (
-          <div className="setup-instructions" style={styles.setupInstructions}>
-            <h3>Setup Required</h3>
-            <pre>{selectedService.setupInstructions}</pre>
-            <button 
+      </div>
+
+      <Modal
+        isOpen={showSetupInstructions && selectedService}
+        onClose={() => {
+          setShowSetupInstructions(false);
+          setIsCheckingLocalService(false);
+          setServiceType(SpeechServiceType.WEB_SPEECH);
+        }}
+        title="Local Processing Setup Required"
+      >
+        <div className="space-y-6">
+          <p className={`text-lg ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+            To use local processing (HIPAA-compliant), please follow these steps:
+          </p>
+          <pre className={`p-4 rounded-lg font-mono text-sm overflow-x-auto ${
+            isDarkMode ? 'bg-gray-800 text-gray-200' : 'bg-gray-100 text-gray-800'
+          }`}>
+            {selectedService?.setupInstructions}
+          </pre>
+          <div className="flex justify-end space-x-4">
+            <button
+              onClick={() => {
+                setShowSetupInstructions(false);
+                setIsCheckingLocalService(false);
+                setServiceType(SpeechServiceType.WEB_SPEECH);
+              }}
+              className={`px-4 py-2 rounded transition-colors ${
+                isDarkMode 
+                  ? 'text-gray-300 hover:bg-gray-800' 
+                  : 'text-gray-600 hover:bg-gray-100'
+              }`}
+            >
+              Cancel
+            </button>
+            <button
               onClick={handleSetupComplete}
-              style={styles.button}
+              className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors"
             >
               I've completed setup - Connect
             </button>
           </div>
-        )}
-      </div>
+          {isCheckingLocalService && (
+            <p className={`text-sm ${
+              isDarkMode ? 'text-gray-400' : 'text-gray-600'
+            }`}>
+              Checking for local service... We'll automatically connect when it's available.
+            </p>
+          )}
+        </div>
+      </Modal>
 
       {/* Main Control Button */}
       <button
