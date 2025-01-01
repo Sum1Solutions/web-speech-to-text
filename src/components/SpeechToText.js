@@ -127,9 +127,9 @@ const SpeechToText = () => {
 
   // Initialize recognition
   useEffect(() => {
-    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition || window.msSpeechRecognition;
     if (!SpeechRecognition) {
-      setError('Speech recognition is not supported in this browser. Please use Chrome.');
+      setError('Speech recognition is not supported in this browser. Please use Chrome or Edge.');
       return;
     }
 
@@ -137,6 +137,9 @@ const SpeechToText = () => {
     recognition.continuous = true;
     recognition.interimResults = true;
     recognition.lang = 'en-US';
+
+    // Ensure consistent behavior across browsers
+    recognition.maxAlternatives = 1;
 
     recognition.onresult = handleSpeechResult;
     recognition.onerror = handleSpeechError;
@@ -181,6 +184,13 @@ const SpeechToText = () => {
   const handleAutoCopyChange = useCallback((e) => {
     setAutoCopy(e.target.checked);
   }, []);
+
+  // Scroll to bottom when new text is added to textarea
+  useEffect(() => {
+    if (textareaRef.current) {
+      textareaRef.current.scrollTop = textareaRef.current.scrollHeight;
+    }
+  }, [collectedText]);
 
   // Scroll to bottom when new transcripts are added
   useEffect(() => {
