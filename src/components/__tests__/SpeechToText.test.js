@@ -3,218 +3,246 @@ import { render, screen, act, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import '@testing-library/jest-dom';
 import SpeechToText from '../SpeechToText';
+import { ThemeProvider } from '../../theme/ThemeContext';
+import { SpeechServiceType } from '../../services/SpeechServiceFactory';
 
-// Mock implementation of the Web Speech API
-const setupSpeechRecognition = () => {
-  const mockRecognition = {
-    start: jest.fn(),
-    stop: jest.fn(),
-    continuous: false,
-    interimResults: false,
-    lang: '',
-    onresult: null,
-    onerror: null,
-    onend: null
+// Create mock service object
+const createMockService = () => ({
+  startListening: jest.fn().mockResolvedValue(undefined),
+  stopListening: jest.fn(),
+  isListening: jest.fn().mockReturnValue(false),
+  onResult: jest.fn(),
+  onError: jest.fn(),
+  onEnd: jest.fn()
+});
+
+// Mock the speech service factory
+jest.mock('../../services/SpeechServiceFactory', () => {
+  const mockServiceInfo = [
+    {
+      id: 'WEB_SPEECH',
+      name: 'Web Speech API',
+      description: 'Browser\'s built-in speech recognition (Not HIPAA Compliant)',
+      hipaaCompliant: false
+    },
+    {
+      id: 'LOCAL_OLLAMA',
+      name: 'Local Ollama',
+      description: 'Local machine processing using Ollama (HIPAA Compliant)',
+      hipaaCompliant: true
+    }
+  ];
+
+  return {
+    SpeechServiceType: {
+      WEB_SPEECH: 'WEB_SPEECH',
+      LOCAL_OLLAMA: 'LOCAL_OLLAMA'
+    },
+    __esModule: true,
+    default: {
+      initService: jest.fn().mockImplementation(async () => {
+        const mockService = createMockService();
+        return mockService;
+      }),
+      getCurrentService: jest.fn().mockImplementation(() => {
+        const mockService = createMockService();
+        return mockService;
+      }),
+      getServiceType: jest.fn().mockReturnValue('WEB_SPEECH'),
+      getServiceInfo: jest.fn().mockReturnValue(mockServiceInfo),
+      checkOllamaAvailable: jest.fn().mockReturnValue(true)
+    }
   };
+});
 
-  const Recognition = function() {
-    return mockRecognition;
-  };
-
-  window.SpeechRecognition = Recognition;
-  window.webkitSpeechRecognition = Recognition;
-
-  return mockRecognition;
+const renderWithTheme = (component) => {
+  return render(
+    <ThemeProvider>{component}</ThemeProvider>
+  );
 };
 
 describe('SpeechToText Component', () => {
-  let mockRecognition;
   let user;
-  let consoleErrorSpy;
+  let mockService;
+  let mockFactory;
 
   beforeEach(() => {
     user = userEvent.setup();
-    mockRecognition = setupSpeechRecognition();
-    consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
+    jest.clearAllMocks();
     
-    // Mock the clipboard API
-    const mockClipboard = {
-      writeText: jest.fn(() => Promise.resolve())
-    };
-    Object.defineProperty(navigator, 'clipboard', {
-      value: mockClipboard,
-      writable: true,
-      configurable: true
+    // Reset mock service for each test
+    mockService = createMockService();
+    mockFactory = jest.requireMock('../../services/SpeechServiceFactory').default;
+    mockFactory.getCurrentService.mockReturnValue(mockService);
+    mockFactory.initService.mockResolvedValue(mockService);
+  });
+
+  test('initializes with Web Speech API by default', async () => {
+    renderWithTheme(<SpeechToText />);
+    
+    await waitFor(() => {
+      expect(mockFactory.initService).toHaveBeenCalledWith(SpeechServiceType.WEB_SPEECH);
+    });
+  });
+
+  test('switches between services', async () => {
+    renderWithTheme(<SpeechToText />);
+    
+    // Wait for initial service to be initialized
+    await waitFor(() => {
+      const select = screen.getByRole('combobox');
+      expect(select).not.toBeDisabled();
     });
 
-    // Reset the mock between tests
-    navigator.clipboard.writeText.mockClear();
+    // Mock successful Ollama check for this test
+    mockFactory.checkOllamaAvailable = jest.fn().mockReturnValue(true);
+  
+    const select = screen.getByRole('combobox');
+    await user.selectOptions(select, 'LOCAL_OLLAMA');
+  
+    expect(mockFactory.initService).toHaveBeenCalledWith('LOCAL_OLLAMA');
   });
 
-  afterEach(() => {
-    delete window.SpeechRecognition;
-    delete window.webkitSpeechRecognition;
-    consoleErrorSpy.mockRestore();
-    jest.clearAllMocks();
+  test('shows Ollama installation message when switching to Ollama without it installed', async () => {
+    renderWithTheme(<SpeechToText />);
+    
+    // Wait for initial service to be initialized
+    await waitFor(() => {
+      const select = screen.getByRole('combobox');
+      expect(select).not.toBeDisabled();
+    });
+
+    // Mock Ollama not available
+    mockFactory.checkOllamaAvailable = jest.fn().mockReturnValue(false);
+  
+    const select = screen.getByRole('combobox');
+    await user.selectOptions(select, 'LOCAL_OLLAMA');
+  
+    // Should show installation message
+    await waitFor(() => {
+      expect(screen.getByText(/Please install Ollama first/)).toBeInTheDocument();
+    });
   });
 
-  test('renders initial state correctly', () => {
-    render(<SpeechToText />);
+  test('starts and stops listening', async () => {
+    renderWithTheme(<SpeechToText />);
     
-    expect(screen.getByText('Microphone off')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /start listening/i })).toBeInTheDocument();
-    expect(screen.getByRole('checkbox', { name: /auto-copy/i })).toBeChecked();
-  });
+    // Wait for initial service to be initialized
+    await waitFor(() => {
+      expect(mockFactory.initService).toHaveBeenCalled();
+    });
 
-  test('handles browser without speech recognition', () => {
-    delete window.SpeechRecognition;
-    delete window.webkitSpeechRecognition;
-    
-    render(<SpeechToText />);
-    
-    expect(screen.getByText(/speech recognition is not supported/i)).toBeInTheDocument();
-  });
-
-  test('starts and stops listening when button is clicked', async () => {
-    render(<SpeechToText />);
-    
     // Start listening
     await user.click(screen.getByRole('button', { name: /start listening/i }));
-    expect(mockRecognition.start).toHaveBeenCalled();
+    expect(mockService.startListening).toHaveBeenCalled();
+    expect(mockService.onResult).toHaveBeenCalled();
     expect(screen.getByText('Listening...')).toBeInTheDocument();
 
     // Stop listening
     await user.click(screen.getByRole('button', { name: /stop listening/i }));
-    expect(mockRecognition.stop).toHaveBeenCalled();
+    expect(mockService.stopListening).toHaveBeenCalled();
     expect(screen.getByText('Microphone off')).toBeInTheDocument();
   });
 
-  test('handles speech recognition results', async () => {
-    render(<SpeechToText />);
+  test('handles transcription results', async () => {
+    renderWithTheme(<SpeechToText />);
     
-    // Start listening
-    await user.click(screen.getByRole('button', { name: /start listening/i }));
-
-    // Simulate speech result
-    act(() => {
-      mockRecognition.onresult({
-        results: [[{ transcript: 'Hello world', isFinal: true }]],
-        resultIndex: 0
-      });
-    });
-
-    expect(screen.getByText('Hello world')).toBeInTheDocument();
-  });
-
-  test('handles microphone permission denied', async () => {
-    render(<SpeechToText />);
-    
-    await user.click(screen.getByRole('button', { name: /start listening/i }));
-
-    // Simulate permission denied error
-    act(() => {
-      mockRecognition.onerror({ error: 'not-allowed' });
-    });
-
+    // Wait for service initialization
     await waitFor(() => {
-      expect(screen.getByText(/microphone access denied/i)).toBeInTheDocument();
+      expect(mockFactory.initService).toHaveBeenCalled();
     });
-  });
 
-  test('clears transcripts when clear button is clicked', async () => {
-    render(<SpeechToText />);
-    
-    // Add some text
+    const startButton = screen.getByRole('button', { name: /start listening/i });
+    await user.click(startButton);
+
+    // Get the callback that was registered with onResult
+    expect(mockService.onResult).toHaveBeenCalled();
+    const onResultCallback = mockService.onResult.mock.calls[0][0];
+
+    // Simulate a transcription result by calling the callback directly
     act(() => {
-      mockRecognition.onresult({
-        results: [[{ transcript: 'Test transcript', isFinal: true }]],
-        resultIndex: 0
-      });
+      onResultCallback({ text: 'Hello, world!', isFinal: true });
     });
 
-    // Clear transcripts
-    await user.click(screen.getByRole('button', { name: /clear/i }));
-    expect(screen.queryByText('Test transcript')).not.toBeInTheDocument();
-  });
-
-  test('auto-copies text when enabled', async () => {
-    render(<SpeechToText />);
-    
-    // Start listening
-    await user.click(screen.getByRole('button', { name: /start listening/i }));
-
-    // Simulate speech result with final flag
-    await act(async () => {
-      mockRecognition.onresult({
-        resultIndex: 0,
-        results: [[{ transcript: 'Copy this text', isFinal: true }]]
-      });
-    });
-
-    // Wait for the clipboard API to be called
+    // Wait for state updates
     await waitFor(() => {
-      expect(navigator.clipboard.writeText).toHaveBeenCalledWith('Copy this text');
-    }, { timeout: 2000 });
+      const textarea = screen.getByRole('textbox');
+      expect(textarea.value).toBe('Hello, world!');
+    });
+
+    // Check that text appears in the transcript bubble
+    const bubble = screen.getByText('Hello, world!', { selector: '.rounded-lg.shadow.break-words' });
+    expect(bubble).toBeInTheDocument();
   });
 
   test('handles voice commands', async () => {
-    render(<SpeechToText />);
+    renderWithTheme(<SpeechToText />);
     
+    // Wait for initial service to be initialized
+    await waitFor(() => {
+      expect(mockFactory.initService).toHaveBeenCalled();
+    });
+
     // Start listening
     await user.click(screen.getByRole('button', { name: /start listening/i }));
-
-    // Test "clear clear" command
-    await act(async () => {
-      mockRecognition.onresult({
-        resultIndex: 0,
-        results: [[{ transcript: 'clear clear', isFinal: true }]]
-      });
-    });
-
-    // Verify transcripts are cleared
-    await waitFor(() => {
-      const transcriptElements = screen.queryAllByRole('generic').filter(el => 
-        el.className.includes('bg-white') && el.textContent === 'clear clear'
-      );
-      expect(transcriptElements.length).toBe(0);
-    }, { timeout: 2000 });
-
-    // Add some text to verify clearing works
-    await act(async () => {
-      mockRecognition.onresult({
-        resultIndex: 0,
-        results: [[{ transcript: 'test text', isFinal: true }]]
-      });
-    });
-
-    // Verify text appears
-    await waitFor(() => {
-      expect(screen.getByText('test text')).toBeInTheDocument();
-    });
+    const [[callback]] = mockService.onResult.mock.calls;
 
     // Test "stop listening" command
-    await act(async () => {
-      mockRecognition.onresult({
-        resultIndex: 0,
-        results: [[{ transcript: 'stop listening', isFinal: true }]]
+    act(() => {
+      callback({
+        text: 'stop listening',
+        isFinal: true
+      });
+    });
+    expect(mockService.stopListening).toHaveBeenCalled();
+
+    // Start again and test "clear clear" command
+    await user.click(screen.getByRole('button', { name: /start listening/i }));
+    const [[newCallback]] = mockService.onResult.mock.calls;
+    
+    // Add some text first
+    act(() => {
+      newCallback({
+        text: 'This is some text',
+        isFinal: true
       });
     });
 
-    // Wait for the command to be processed and verify listening has stopped
+    // Then clear it
+    act(() => {
+      newCallback({
+        text: 'clear clear',
+        isFinal: true
+      });
+    });
+
+    expect(screen.queryByText('This is some text')).not.toBeInTheDocument();
+  });
+
+  test('handles service initialization error', async () => {
+    const errorMessage = 'Failed to initialize service';
+    mockFactory.initService.mockRejectedValueOnce(new Error(errorMessage));
+    
+    renderWithTheme(<SpeechToText />);
+    
     await waitFor(() => {
-      expect(screen.getByRole('button', { name: /start listening/i })).toBeInTheDocument();
+      expect(screen.getByText(errorMessage)).toBeInTheDocument();
     });
   });
 
-  test('handles recognition end and restarts if still listening', async () => {
-    render(<SpeechToText />);
+  test('handles start listening error', async () => {
+    renderWithTheme(<SpeechToText />);
     
-    await user.click(screen.getByRole('button', { name: /start listening/i }));
-    
-    act(() => {
-      mockRecognition.onend();
+    // Wait for initial service to be initialized
+    await waitFor(() => {
+      expect(mockFactory.initService).toHaveBeenCalled();
     });
 
-    expect(mockRecognition.start).toHaveBeenCalledTimes(2); // Once for initial start, once for restart
+    mockService.startListening.mockRejectedValueOnce(new Error('Failed to start listening'));
+    await user.click(screen.getByRole('button', { name: /start listening/i }));
+    
+    await waitFor(() => {
+      expect(screen.getByText('Failed to start recording. Please try again.')).toBeInTheDocument();
+    });
   });
 });

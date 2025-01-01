@@ -14,30 +14,33 @@ const SpeechToText = () => {
   const [error, setError] = useState(null);
   const [showInfo, setShowInfo] = useState(false);
   const [serviceType, setServiceType] = useState(SpeechServiceType.WEB_SPEECH);
+  const [serviceInfo, setServiceInfo] = useState([]);
+  const [showSetupInstructions, setShowSetupInstructions] = useState(false);
+  const [selectedService, setSelectedService] = useState(null);
   const processedResultsRef = useRef(new Set());
   const textareaRef = useRef(null);
   const transcriptsContainerRef = useRef(null);
 
-  // Initialize speech service
-  useEffect(() => {
-    const initService = async () => {
-      try {
-        await SpeechServiceFactory.initService(serviceType);
-      } catch (err) {
-        console.error('Error initializing service:', err);
-        setError(err.message);
+  const copyToClipboard = useCallback((text) => {
+    if (navigator.clipboard) {
+      navigator.clipboard.writeText(text).catch(console.error);
+    } else {
+      const textarea = textareaRef.current;
+      if (textarea) {
+        textarea.value = text;
+        textarea.select();
+        document.execCommand('copy');
       }
-    };
+    }
+  }, []);
 
-    initService();
-  }, [serviceType]);
-
-  const handleServiceChange = async (event) => {
-    const newType = event.target.value;
-    setIsListening(false);
+  const stopListening = useCallback(() => {
     setError(null);
-    setServiceType(newType);
-  };
+    setIsListening(false);
+    if (SpeechServiceFactory.getCurrentService()) {
+      SpeechServiceFactory.getCurrentService().stopRecording();
+    }
+  }, []);
 
   const clearTranscripts = useCallback(() => {
     setTranscripts([]);
@@ -48,16 +51,24 @@ const SpeechToText = () => {
 
   const handleTranscription = useCallback((data) => {
     setError(null);
-    const { text, isFinal } = data;
+    const { text, isFinal, error: transcriptionError } = data;
     
-    // Check for voice commands
+    if (transcriptionError) {
+      setError(transcriptionError);
+      return;
+    }
+    
+    // Check for voice commands with normalized text
     if (isFinal) {
-      const command = text.trim().toLowerCase();
-      if (command === "clear clear") {
+      const normalizedText = text.trim().toLowerCase()
+        .replace(/[.,!?]/g, '') // Remove punctuation
+        .replace(/\s+/g, ' '); // Normalize spaces
+      
+      if (normalizedText === "clear clear") {
         clearTranscripts();
         return;
       }
-      if (command === "stop listening") {
+      if (normalizedText === "stop listening") {
         stopListening();
         return;
       }
@@ -85,47 +96,89 @@ const SpeechToText = () => {
       }
       return newTranscripts;
     });
-  }, [autoCopy, clearTranscripts]);
+  }, [autoCopy, clearTranscripts, copyToClipboard, stopListening]);
 
-  const stopListening = useCallback(() => {
-    setError(null);
-    setIsListening(false);
-    SpeechServiceFactory.stopRecording();
+  // Initialize service info
+  useEffect(() => {
+    const info = SpeechServiceFactory.getServiceInfo();
+    setServiceInfo(info || []);
+    setSelectedService(info.find(s => s.id === SpeechServiceType.WEB_SPEECH));
   }, []);
 
-  const startListening = useCallback(async () => {
-    try {
-      setError(null);
-      await SpeechServiceFactory.startRecording(handleTranscription);
-      setIsListening(true);
-    } catch (err) {
-      console.error('Error starting recording:', err);
-      setError('Failed to start recording. Please try again.');
-      setIsListening(false);
-    }
-  }, [handleTranscription]);
+  // Initialize speech service
+  useEffect(() => {
+    const initService = async () => {
+      try {
+        await SpeechServiceFactory.initService(serviceType);
+      } catch (err) {
+        console.error('Error initializing service:', err);
+        setError(err.message);
+      }
+    };
 
-  const copyToClipboard = useCallback(async (text = collectedText) => {
-    if (!text) return;
+    initService();
+  }, [serviceType]);
+
+  const handleServiceChange = async (event) => {
+    const newType = event.target.value;
+    setIsListening(false);
+    setError(null);
     
+    const service = serviceInfo.find(s => s.id === newType);
+    setSelectedService(service);
+    
+    if (service.setupRequired) {
+      setShowSetupInstructions(true);
+      setServiceType(SpeechServiceType.WEB_SPEECH); // Keep using web speech until setup is complete
+    } else {
+      setShowSetupInstructions(false);
+      setServiceType(newType);
+      await SpeechServiceFactory.initService(newType);
+    }
+  };
+
+  const handleSetupComplete = async () => {
     try {
-      if (autoCopy || text === collectedText) {
-        await navigator.clipboard.writeText(text);
-        
-        if (textareaRef.current) {
-          textareaRef.current.style.backgroundColor = '#4ade80';
-          setTimeout(() => {
-            if (textareaRef.current) {
-              textareaRef.current.style.backgroundColor = '';
-            }
-          }, 200);
+      setShowSetupInstructions(false);
+      setServiceType(selectedService.id);
+      await SpeechServiceFactory.initService(selectedService.id);
+    } catch (error) {
+      setError('Failed to connect to local service. Please make sure setup is complete.');
+      setServiceType(SpeechServiceType.WEB_SPEECH);
+    }
+  };
+
+  const toggleListening = useCallback(async () => {
+    try {
+      if (!isListening) {
+        const service = SpeechServiceFactory.getCurrentService();
+        if (!service) {
+          throw new Error('Speech service not initialized');
         }
+        await service.startRecording(handleTranscription);
+        setIsListening(true);
+      } else {
+        stopListening();
       }
     } catch (err) {
-      console.error('Failed to copy text: ', err);
-      setError('Failed to copy text to clipboard');
+      console.error('Error toggling listening:', err);
+      setError(err.message || 'Failed to start recording, please try again');
+      setIsListening(false);
     }
-  }, [collectedText, autoCopy]);
+  }, [isListening, handleTranscription, stopListening]);
+
+  // Space bar shortcut
+  useEffect(() => {
+    const handleKeyDown = (event) => {
+      if (event.code === 'Space' && event.target === document.body) {
+        event.preventDefault();
+        toggleListening();
+      }
+    };
+
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [toggleListening]);
 
   const handleAutoCopyChange = useCallback((e) => {
     setAutoCopy(e.target.checked);
@@ -201,7 +254,7 @@ const SpeechToText = () => {
         {showBubbles && transcripts.map((text, index) => (
           <div 
             key={index} 
-            className={styles.transcripts.bubble + styles.transcripts.bubbleColors}
+            className={`${styles.transcripts.bubble} ${styles.transcripts.bubbleColors}`}
           >
             {text}
           </div>
@@ -214,7 +267,7 @@ const SpeechToText = () => {
           ref={textareaRef}
           value={collectedText}
           onChange={(e) => setCollectedText(e.target.value)}
-          className={styles.textArea.input + styles.textArea.inputColors}
+          className={`${styles.textArea.input} ${styles.textArea.inputColors}`}
           rows={4}
           placeholder="Transcribed text will appear here..."
         />
@@ -235,24 +288,23 @@ const SpeechToText = () => {
       {/* Settings */}
       <div className={styles.controls.container}>
         <div className="flex items-center gap-4">
-          <label className={styles.controls.checkboxLabel + " group relative" + styles.controls.checkboxText}>
+          <label className={`${styles.controls.checkboxLabel} group relative ${styles.controls.checkboxText}`}>
             <select
+              className="form-select rounded-md bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600"
               value={serviceType}
               onChange={handleServiceChange}
-              className="form-select rounded-md bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600"
-              disabled={isListening}
             >
-              {SpeechServiceFactory.getServiceInfo().map(service => (
+              {serviceInfo.map(service => (
                 <option key={service.id} value={service.id}>
                   {service.name}
                 </option>
               ))}
             </select>
             <div className={styles.tooltip.container + " w-64"}>
-              {SpeechServiceFactory.getServiceInfo().find(s => s.id === serviceType)?.description}
+              {serviceInfo.find(s => s.id === serviceType)?.description}
             </div>
           </label>
-          <label className={styles.controls.checkboxLabel + " group relative" + styles.controls.checkboxText}>
+          <label className={`${styles.controls.checkboxLabel} group relative ${styles.controls.checkboxText}`}>
             <input
               type="checkbox"
               id="autoCopy"
@@ -265,7 +317,7 @@ const SpeechToText = () => {
               Automatically copy text to clipboard when new text is transcribed
             </div>
           </label>
-          <label className={styles.controls.checkboxLabel + " group relative" + styles.controls.checkboxText}>
+          <label className={`${styles.controls.checkboxLabel} group relative ${styles.controls.checkboxText}`}>
             <input
               type="checkbox"
               checked={showBubbles}
@@ -289,12 +341,38 @@ const SpeechToText = () => {
             Clear all transcribed text and speech bubbles
           </div>
         </div>
+        {showSetupInstructions && selectedService && (
+          <div className="setup-instructions" style={styles.setupInstructions}>
+            <h3>Setup Required</h3>
+            <pre>{selectedService.setupInstructions}</pre>
+            <button 
+              onClick={handleSetupComplete}
+              style={styles.button}
+            >
+              I've completed setup - Connect
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Main Control Button */}
       <button
-        onClick={isListening ? stopListening : startListening}
-        className={styles.buttons.primary + " w-full"}
+        onClick={toggleListening}
+        style={{
+          ...styles.mainButton,
+          backgroundColor: isListening ? '#ff4444' : '#2196F3',
+          color: 'white',
+          padding: '12px 24px',
+          fontSize: '16px',
+          borderRadius: '8px',
+          border: 'none',
+          cursor: 'pointer',
+          transition: 'background-color 0.3s',
+          boxShadow: '0 2px 4px rgba(0,0,0,0.2)',
+          ':hover': {
+            backgroundColor: isListening ? '#ff6666' : '#1976D2'
+          }
+        }}
       >
         {isListening ? 'Stop Listening' : 'Start Listening'}
       </button>

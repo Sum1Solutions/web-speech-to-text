@@ -12,7 +12,8 @@
   "scripts": {
     "start": "react-scripts start",
     "build": "GENERATE_SOURCEMAP=false react-scripts build",
-    "test": "react-scripts test",
+    "test": "react-scripts test --watchAll",
+    "test:ci": "react-scripts test --watchAll=false --ci --coverage",
     "eject": "react-scripts eject"
   },
   "eslintConfig": {

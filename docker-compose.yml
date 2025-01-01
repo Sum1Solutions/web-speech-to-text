@@ -1,0 +1,64 @@
+version: '3.8'
+
+services:
+  web:
+    build: .
+    ports:
+      - "3000:3000"
+    volumes:
+      - .:/app
+      - /app/node_modules
+    environment:
+      - REACT_APP_OLLAMA_URL=http://ollama:11434
+      - REACT_APP_SERVER_URL=http://server:5000
+    depends_on:
+      - ollama
+      - server
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "http://localhost:3000"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    profiles:
+      - web-only
+      - full
+
+  server:
+    build: ./server
+    ports:
+      - "5000:5000"
+    environment:
+      - OLLAMA_URL=http://ollama:11434
+    depends_on:
+      - ollama
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5000/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    profiles:
+      - full
+
+  ollama:
+    image: ollama/ollama:latest
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama:/root/.ollama
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:11434/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    profiles:
+      - full
+
+volumes:
+  ollama:

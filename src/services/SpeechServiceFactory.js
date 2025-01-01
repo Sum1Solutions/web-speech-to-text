@@ -26,6 +26,9 @@ class SpeechServiceFactory {
                     this.currentService = WebSpeechService;
                     break;
                 case SpeechServiceType.LOCAL_OLLAMA:
+                    if (!await this.checkOllamaAvailable()) {
+                        throw new Error('Ollama is not installed. Please install Ollama first to use local speech recognition.');
+                    }
                     this.currentService = LocalSpeechService;
                     break;
                 default:
@@ -42,6 +45,18 @@ class SpeechServiceFactory {
         }
     }
 
+    async checkOllamaAvailable() {
+        try {
+            // In Docker environment, we'll check if we can reach the Ollama service
+            const ollamaUrl = process.env.REACT_APP_OLLAMA_URL || 'http://localhost:11434';
+            return fetch(`${ollamaUrl}/api/health`)
+                .then(response => response.ok)
+                .catch(() => false);
+        } catch (error) {
+            return false;
+        }
+    }
+
     getCurrentService() {
         return this.currentService;
     }
@@ -55,12 +70,24 @@ class SpeechServiceFactory {
             [SpeechServiceType.WEB_SPEECH]: {
                 name: 'Web Speech API',
                 description: 'Browser\'s built-in speech recognition (Not HIPAA Compliant)',
-                hipaaCompliant: false
+                hipaaCompliant: false,
+                setupRequired: false
             },
             [SpeechServiceType.LOCAL_OLLAMA]: {
                 name: 'Local Ollama',
                 description: 'Local machine processing using Ollama (HIPAA Compliant)',
-                hipaaCompliant: true
+                hipaaCompliant: true,
+                setupRequired: true,
+                setupInstructions: `
+To enable HIPAA-compliant local processing:
+
+1. Install Docker Desktop from https://www.docker.com/products/docker-desktop
+2. Run the following commands in your terminal:
+   ./start.sh
+
+3. Wait for the services to start (this may take a few minutes)
+4. Click "Connect" to start using local processing
+                `
             }
         };
 
@@ -71,4 +98,5 @@ class SpeechServiceFactory {
     }
 }
 
-export default new SpeechServiceFactory();
+const speechServiceFactory = new SpeechServiceFactory();
+export default speechServiceFactory;

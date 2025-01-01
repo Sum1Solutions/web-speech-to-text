@@ -6,10 +6,10 @@ A modern, privacy-focused speech recognition application built with React. Offer
 
 - Real-time speech-to-text transcription
 - HIPAA-compliant local processing option
-- Browser-based cloud processing option
-- Automatic clipboard copy
+- Browser-based cloud processing option (not HIPAA-compliant)
+- Automatic clipboard copy for easy pasting into your EHR
 - Real-time transcription bubbles
-- Dark mode support
+- Dark and light mode support
 - Voice commands
 - Mobile-responsive design
 
@@ -28,7 +28,6 @@ A modern, privacy-focused speech recognition application built with React. Offer
 - 100% private - runs entirely on your machine
 - HIPAA compliant
 - Customizable with medical-specific models
-- Requires local setup
 - Uses Ollama with Whisper model
 - Ideal for medical/healthcare settings
 
@@ -40,7 +39,34 @@ A modern, privacy-focused speech recognition application built with React. Offer
   - Python 3.8+
   - [Ollama](https://ollama.ai)
 
-## Quick Start
+## Quick Start with Docker (Recommended)
+
+The easiest way to get started is using Docker:
+
+1. Install Docker:
+   - [Docker Desktop for Windows/Mac](https://www.docker.com/products/docker-desktop)
+   - For Linux: `curl -fsSL https://get.docker.com | sh`
+
+2. Run the application:
+   ```bash
+   # On Mac/Linux:
+   ./start.sh
+
+   # On Windows:
+   # Double-click start.sh in File Explorer
+   ```
+
+3. Open http://localhost:3000 in your browser
+
+That's it! The script will automatically:
+- Check for Docker installation
+- Pull the latest images
+- Start all necessary services
+- Set up HIPAA-compliant local processing
+
+## Manual Setup (Alternative)
+
+If you prefer to run without Docker:
 
 1. Clone the repository:
    ```bash
@@ -102,8 +128,8 @@ To use the HIPAA-compliant local processing:
 5. Text automatically copies to clipboard
 
 ### Voice Commands
-- "stop listening" - Stops recording
-- "clear clear" - Erases all text
+- "stop listening" - Stops recording after the next line (only works with Chrome)
+- "clear clear" - Erases all text in bubbles (only works with Chrome)
 
 ### Keyboard Shortcuts
 - Space: Start/Stop listening
