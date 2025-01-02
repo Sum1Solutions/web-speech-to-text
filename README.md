@@ -1,211 +1,109 @@
 # Web Speech-to-Text
 
-A modern, privacy-focused speech recognition application built with React. Choose from three deployment options based on your needs.
+A modern, dual-mode speech recognition application that offers both cloud-based and HIPAA-compliant local processing options. Built with React and designed for reliability and privacy.
 
 ## Key Features
 
-- Real-time speech-to-text transcription
-- HIPAA-compliant local processing option
-- Browser-based cloud processing option (not HIPAA-compliant)
-- Automatic clipboard copy for easy pasting into your EHR
-- Real-time transcription bubbles
-- Dark and light mode support
-- Voice commands
-- Mobile-responsive design
+- **Dual Processing Modes**:
+  - Web Speech API (Cloud-based, available on Cloudflare)
+  - Local Processing (HIPAA-compliant, using Ollama)
+- **Real-time Transcription**:
+  - Instant feedback with transcription bubbles
+  - Automatic punctuation and formatting (on Microsoft Edge only)
+- **User Experience**:
+  - Dark/Light mode support
+  - Mobile-responsive design
+  - Automatic clipboard copy
+  - Spacebar shortcut for quick start/stop
+- **Privacy & Security**:
+  - Option for complete local processing
+  - No data storage or transmission (in local mode)
+  - HIPAA-compliant option available
 
 ## Deployment Options
 
-### 1. Simple React App (Simplest)
-- Just run `npm start`
-- Uses browser's Web Speech API
-- No Docker required
-- Perfect for quick testing and development
+### 1. Cloud Deployment (via Cloudflare)
+- Accessible at: [talkudoc.com](https://talkudoc.com)
+- Features browser's Web Speech API
+- Automatically deployed via CI
+- For general use
+- No setup required
+
+### 2. Local Development
 ```bash
-cd packages/core
 npm install
 npm start
 ```
-
-### 2. Dockerized Web App (Recommended)
-- Containerized frontend
+- Runs on http://localhost:3000
 - Uses browser's Web Speech API
-- Consistent environment across platforms
-```bash
-cd packages/docker
-./start.sh
-```
+- Great for development and testing
 
-### 3. Full Local Processing (HIPAA-Compliant)
-- Complete privacy with local processing
+### 3. HIPAA-Compliant Local Processing
+```bash
+./start.sh --full
+```
+- Runs completely locally
 - Uses Ollama for speech recognition
-- HIPAA-compliant
-- Ideal for healthcare settings
-```bash
-cd packages/full
-./start.sh
-```
+- No data leaves your machine
+- Requires Docker
 
-## Features by Version
+## Architecture
 
-| Feature                    | Simple | Docker | Full |
-|---------------------------|---------|---------|------|
-| Speech-to-Text            | ✅      | ✅      | ✅   |
-| Real-time Transcription   | ✅      | ✅      | ✅   |
-| Dark/Light Mode           | ✅      | ✅      | ✅   |
-| Containerized             | ❌      | ✅      | ✅   |
-| Local Processing          | ❌      | ❌      | ✅   |
-| HIPAA Compliant           | ❌      | ❌      | ✅   |
-| GPU Acceleration          | ❌      | ❌      | ✅   |
+### Cloud Version (Cloudflare)
+- React frontend hosted on Cloudflare
+- Uses browser's native Web Speech API
+- No backend required
+- Automatic deployment via CI
 
-## Prerequisites
+### Local Processing Version
+- React frontend
+- FastAPI WebSocket server
+- Ollama for speech recognition
+- Docker containerization
+- Local network only
 
-### Simple Version
+## Mode Comparison
+
+| Feature                    | Cloud (Cloudflare) | Local Processing |
+|---------------------------|-------------------|------------------|
+| Setup Required            | None              | Docker + Ollama  |
+| Privacy                   | Standard          | HIPAA-Compliant  |
+| Processing Speed          | Fast              | Variable         |
+| Internet Required         | Yes               | No               |
+| Automatic Updates         | Yes               | Manual           |
+
+## Local Development Prerequisites
+
 - Node.js 14+
-- npm or yarn
+- npm
+- Docker Desktop (for local processing mode)
 
-### Docker Version
-- Docker Desktop
-- Docker Compose
+## Quick Start
 
-### Full Version
-- Docker Desktop
-- Docker Compose
-- NVIDIA GPU (optional, for better performance)
+### Cloud Version
+1. Visit [talkudoc.com](https://talkudoc.com)
+2. Allow microphone (and optional clipboard) access if you plan to paste your transcription into another window.
+3. Start speaking and pasting!
 
-## Quick Start with Docker (Recommended)
-
-The easiest way to get started is using Docker:
-
-1. Install Docker:
-   - [Docker Desktop for Windows/Mac](https://www.docker.com/products/docker-desktop)
-   - For Linux: `curl -fsSL https://get.docker.com | sh`
-
-2. Run the application:
-   ```bash
-   # On Mac/Linux:
-   ./start.sh
-
-   # On Windows:
-   # Double-click start.sh in File Explorer
-   ```
-
-3. Open http://localhost:3000 in your browser
-
-That's it! The script will automatically:
-- Check for Docker installation
-- Pull the latest images
-- Start all necessary services
-- Set up HIPAA-compliant local processing
-
-## Manual Setup (Alternative)
-
-If you prefer to run without Docker:
-
-1. Clone the repository:
-   ```bash
-   git clone https://github.com/Sum1Solutions/web-speech-to-text.git
-   cd web-speech-to-text
-   ```
-
-2. Install dependencies:
-   ```bash
-   npm install
-   ```
-
-3. Start the React app:
-   ```bash
-   npm start
-   ```
-
-4. Open http://localhost:3000 in Chrome or Edge
-
-## HIPAA Compliance Setup
-
-To use the HIPAA-compliant local processing:
-
-1. Install Ollama:
-   ```bash
-   # macOS/Linux
-   curl https://ollama.ai/install.sh | sh
-   
-   # For other platforms, visit: https://ollama.ai/download
-   ```
-
-2. Pull the Whisper model:
-   ```bash
-   ollama pull whisper
-   ```
-
-3. Set up the Python server:
-   ```bash
-   cd server
-   python -m venv venv
-   source venv/bin/activate  # Windows: venv\Scripts\activate
-   pip install -r requirements.txt
-   python server.py
-   ```
-
-4. In the web app:
-   - Select "Local Ollama" from the processing options dropdown
-   - All processing will now happen locally
-
-## Usage Guide
-
-### Basic Usage
-1. Choose processing method:
-   - Web Speech API: Fast, cloud-based (default)
-   - Local Ollama: Private, HIPAA-compliant
-2. Click "Start Listening" or press Space
-3. Speak naturally
-4. View real-time transcription
-5. Text automatically copies to clipboard
-
-### Voice Commands
-- "stop listening" - Stops recording after the next line (only works with Chrome)
-- "clear clear" - Erases all text in bubbles (only works with Chrome)
-
-### Keyboard Shortcuts
-- Space: Start/Stop listening
-- Ctrl/Cmd + C: Copy text
-- Ctrl/Cmd + X: Clear all
-
-## Development
-
-Each package can be developed independently:
-
-- **core**: Basic React app with browser-based speech recognition
-- **docker**: Adds containerization for consistent deployment
-- **full**: Adds local processing with Ollama
-
-See each package's README for specific development instructions.
-
-### Branch Strategy
-- `main`: Production-ready code
-- `feature/*`: New features
-- `bugfix/*`: Bug fixes
-
-### Current Branches
-- `main`: Stable release
-- `feature/hipaa-compliant-local-processing`: HIPAA compliance implementation
-
-### Testing
+### Local Development
 ```bash
-npm test
+# Start with Web Speech API
+npm install
+npm start
+
+# For HIPAA-compliant local processing
+./start.sh --full
 ```
 
-## Contributing
+## Configuration
 
-1. Choose the appropriate package for your contribution
-2. Make your changes
-3. Submit a PR to the relevant package
+### Environment Variables
+- `REACT_APP_API_URL`: WebSocket server URL (local processing mode)
+- `REACT_APP_DEFAULT_MODE`: Default transcription mode
 
-## License
+## Browser Support
 
-MIT License - See LICENSE file for details
-
-## Support
-
-- [Documentation](docs/)
-- [Issue Tracker](issues/)
-- [Discussions](discussions/)
-- [Contact Us](mailto:support@example.com)
+- Chrome
+- Edge (Recommended) - has auto punctuation, is faster, and picks up many different accents better than Chrome.
+- Firefox ?
+- Safari ?

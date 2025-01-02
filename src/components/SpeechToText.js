@@ -102,10 +102,20 @@ const SpeechToText = () => {
 
   // Function to check if local service is available
   const checkLocalService = useCallback(async () => {
+    // Always use localhost in the browser
+    const ollamaUrl = 'http://localhost:11434';
     try {
-      const response = await fetch('http://localhost:11434/api/health');
-      return response.ok;
+      const response = await fetch(`${ollamaUrl}/api/tags`);
+      if (!response.ok) {
+        setError('Cannot connect to Ollama service. Please make sure you have run "./start.sh --full" and the service is running.');
+        return false;
+      }
+      const data = await response.json();
+      console.log('Ollama service check successful:', data);
+      return true;
     } catch (error) {
+      console.error('Error checking local service:', error);
+      setError('Failed to connect to local service. Please check the console for more information.');
       return false;
     }
   }, []);
@@ -113,20 +123,29 @@ const SpeechToText = () => {
   // Periodically check for local service when it's selected
   useEffect(() => {
     let interval;
-    if (serviceType === SpeechServiceType.LOCAL_SPEECH && !isCheckingLocalService) {
-      interval = setInterval(async () => {
-        const isAvailable = await checkLocalService();
-        if (isAvailable) {
-          setShowSetupInstructions(false);
-          clearInterval(interval);
-          await SpeechServiceFactory.initService(serviceType);
-        }
-      }, 2000); // Check every 2 seconds
-    }
-    return () => {
-      if (interval) clearInterval(interval);
+    let isComponentMounted = true;
+
+    const checkService = async () => {
+      if (!isComponentMounted) return;
+      const isAvailable = await checkLocalService();
+      if (isAvailable && isComponentMounted) {
+        setShowSetupInstructions(false);
+        clearInterval(interval);
+      }
     };
-  }, [serviceType, checkLocalService, isCheckingLocalService]);
+
+    if (serviceType === SpeechServiceType.LOCAL_SPEECH && !isCheckingLocalService) {
+      checkService();
+      interval = setInterval(checkService, 5000);
+    }
+
+    return () => {
+      isComponentMounted = false;
+      if (interval) {
+        clearInterval(interval);
+      }
+    };
+  }, [serviceType, isCheckingLocalService, checkLocalService]);
 
   // Load service info
   useEffect(() => {
@@ -142,17 +161,43 @@ const SpeechToText = () => {
 
   // Initialize speech service
   useEffect(() => {
+    let isComponentMounted = true;
+    
     const initService = async () => {
       try {
+        setError(null);
         await SpeechServiceFactory.initService(serviceType);
+        if (!isComponentMounted) return;
+        
+        // Reset error state on successful initialization
+        setError(null);
+        setShowSetupInstructions(false);
       } catch (err) {
+        if (!isComponentMounted) return;
         console.error('Error initializing service:', err);
         setError(err.message);
+        
+        // If local service fails, fallback to web speech
+        if (serviceType === SpeechServiceType.LOCAL_OLLAMA) {
+          console.log('Falling back to Web Speech...');
+          setServiceType(SpeechServiceType.WEB_SPEECH);
+          const service = serviceInfo.find(s => s.id === SpeechServiceType.WEB_SPEECH);
+          setSelectedService(service);
+        }
       }
     };
 
     initService();
-  }, [serviceType]);
+    
+    return () => {
+      isComponentMounted = false;
+      // Clean up service when changing type
+      const service = SpeechServiceFactory.getCurrentService();
+      if (service) {
+        service.disconnect();
+      }
+    };
+  }, [serviceType, serviceInfo]);
 
   const handleServiceChange = async (event) => {
     const newType = event.target.value;
@@ -163,31 +208,38 @@ const SpeechToText = () => {
     setSelectedService(service);
     
     if (service.setupRequired) {
-      const isAvailable = await checkLocalService();
-      if (!isAvailable) {
-        setShowSetupInstructions(true);
-        setServiceType(SpeechServiceType.WEB_SPEECH); // Keep using web speech until setup is complete
-        setIsCheckingLocalService(true);
-      } else {
+      try {
+        const isAvailable = await checkLocalService();
+        if (!isAvailable) {
+          setShowSetupInstructions(true);
+          // Keep current service type until setup is complete
+          return;
+        }
         setShowSetupInstructions(false);
-        setServiceType(newType);
-        await SpeechServiceFactory.initService(newType);
+      } catch (error) {
+        console.error('Error checking local service:', error);
+        setError('Failed to check local service availability');
+        return;
       }
-    } else {
-      setShowSetupInstructions(false);
-      setServiceType(newType);
-      await SpeechServiceFactory.initService(newType);
     }
+    
+    setServiceType(newType);
   };
 
   const handleSetupComplete = async () => {
+    setError(null);
     try {
+      const isAvailable = await checkLocalService();
+      if (!isAvailable) {
+        setError('Local service is not available yet. Please ensure setup is complete.');
+        return;
+      }
+      
       setShowSetupInstructions(false);
       setServiceType(selectedService.id);
-      await SpeechServiceFactory.initService(selectedService.id);
     } catch (error) {
+      console.error('Error checking local service:', error);
       setError('Failed to connect to local service. Please make sure setup is complete.');
-      setServiceType(SpeechServiceType.WEB_SPEECH);
     }
   };
 
@@ -275,7 +327,7 @@ const SpeechToText = () => {
                 fill="currentColor" 
                 className="w-5 h-5"
               >
-                <path fillRule="evenodd" d="M2.25 12c0-5.385 4.365-9.75 9.75-9.75s9.75 4.365 9.75 9.75-4.365 9.75-9.75 9.75S2.25 17.385 2.25 12zm11.378-3.917c-.89-.777-2.366-.777-3.255 0a.75.75 0 01-.988-1.129c1.454-1.272 3.776-1.272 5.23 0 1.513 1.324 1.513 3.518 0 4.842a3.75 3.75 0 01-.837.552c-.676.328-1.028.774-1.028 1.152v.75a.75.75 0 01-1.5 0v-.75c0-1.279 1.06-2.107 1.875-2.502.182-.088.351-.199.503-.331.83-.727.83-1.857 0-2.584zM12 18a.75.75 0 100-1.5.75.75 0 000 1.5z" clipRule="evenodd" />
+                <path fillRule="evenodd" d="M2.25 12c0-5.385 4.365-9.75 9.75-9.75s9.75 4.365 9.75 9.75-4.365 9.75-9.75 9.75S2.25 17.385 2.25 12zm11.378-3.917c-.89-.777-2.366-.777-3.255 0a.75.75 0 01-.988-1.129c1.454-1.272 3.776-1.272 5.23 0 1.513 1.324 1.513 3.518 0 4.842a3.75 3.75 0 01-.837.552c-.676.328-1.028.774-1.028 1.152v.75a.75.75 0 01-1.5 0v-.75c0-1.279 1.06-2.107 1.875-2.502.182-.088.351-.199.503-.331.83-.727.83-1.857 0-2.584zM9 7h2v2H9V7zm0 4h2v2H9v-2zm0 4h2v2H9v-2zM12 18a.75.75 0 100-1.5.75.75 0 000 1.5z" clipRule="evenodd" />
               </svg>
               Help
             </button>
@@ -325,10 +377,10 @@ const SpeechToText = () => {
         <div className="absolute right-2 bottom-2 group">
           <button
             onClick={() => copyToClipboard(collectedText)}
-            className={`p-2 rounded-full transition-colors ${
+            className={`p-2 rounded-lg transition-colors flex items-center gap-2 ${
               isDarkMode 
-                ? 'text-gray-400 hover:text-gray-200 hover:bg-gray-800' 
-                : 'text-gray-500 hover:text-gray-700 hover:bg-gray-100'
+                ? 'text-gray-300 hover:text-gray-100 hover:bg-gray-700 border border-gray-600' 
+                : 'text-gray-600 hover:text-gray-800 hover:bg-gray-100 border border-gray-300'
             }`}
             title="Copy to clipboard"
           >
@@ -338,9 +390,10 @@ const SpeechToText = () => {
               fill="currentColor" 
               className="w-5 h-5"
             >
-              <path fillRule="evenodd" d="M17.663 3.118c.225.015.45.032.673.05C19.876 3.298 21 4.604 21 6.109v9.642a3 3 0 01-3 3V16.5c0-5.922-4.576-10.775-10.384-11.217.324-1.132 1.3-2.01 2.548-2.114.224-.019.448-.036.673-.051A3 3 0 0113.5 1.5H15a3 3 0 012.663 1.618zM12 4.5A1.5 1.5 0 0113.5 3H15a1.5 1.5 0 011.5 1.5H12z" clipRule="evenodd" />
-              <path d="M3 8.625c0-1.036.84-1.875 1.875-1.875h.375A3.75 3.75 0 019 10.5v1.875c0 1.036.84 1.875 1.875 1.875h1.875A3.75 3.75 0 0116.5 18v2.625c0 1.035-.84 1.875-1.875 1.875h-9.75A1.875 1.875 0 013 20.625v-12z" />
+              <path d="M7 3h10a2 2 0 012 2v14a2 2 0 01-2 2H7a2 2 0 01-2-2V5a2 2 0 012-2zm0 2v14h10V5H7z"/>
+              <path d="M13 7h4v2h-4V7zm0 4h4v2h-4v-2zm0 4h4v2h-4v-2zM9 7h2v2H9V7zm0 4h2v2H9v-2zm0 4h2v2H9v-2z"/>
             </svg>
+            <span>Copy</span>
           </button>
           <div className={`absolute bottom-full right-0 mb-2 ${
             isDarkMode ? 'bg-gray-800 text-gray-200' : 'bg-white text-gray-800'
@@ -355,11 +408,11 @@ const SpeechToText = () => {
         <div className="flex items-center gap-4">
           <label className={`${styles.controls.checkboxLabel} group relative ${styles.controls.checkboxText}`}>
             <select
-              className={`form-select rounded-md px-3 py-2 appearance-none cursor-pointer transition-colors ${
+              className={`form-select rounded-md px-3 py-2 appearance-none cursor-pointer transition-colors border-2 ${
                 isDarkMode 
-                  ? 'bg-gray-800 text-gray-200 border-gray-700 hover:border-gray-600' 
-                  : 'bg-white text-gray-800 border-gray-300 hover:border-gray-400'
-              } focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent`}
+                  ? 'bg-gray-800 text-gray-200 border-gray-600 hover:border-gray-500 focus:border-blue-500' 
+                  : 'bg-white text-gray-800 border-gray-300 hover:border-gray-400 focus:border-blue-500'
+              } focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-50`}
               value={serviceType}
               onChange={handleServiceChange}
             >
@@ -373,6 +426,11 @@ const SpeechToText = () => {
                 </option>
               ))}
             </select>
+            <div className="absolute inset-y-0 right-0 flex items-center px-2 pointer-events-none">
+              <svg className={`w-4 h-4 ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`} viewBox="0 0 20 20" fill="currentColor">
+                <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
+              </svg>
+            </div>
             <div className={`${styles.tooltip.container} w-64 ${
               isDarkMode ? 'bg-gray-800 text-gray-200' : 'bg-white text-gray-800'
             }`}>

@@ -3,11 +3,19 @@ class WebSpeechService {
         this.recognition = null;
         this.onTranscriptionCallback = null;
         this.isListening = false;
+        this.restartTimeout = null;
+        this.lastStartTime = null;
+        this.minRestartDelay = 300; // Minimum delay between restarts in ms
     }
 
     async init() {
         try {
-            const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+            // Try Microsoft Cognitive Services first for Edge
+            const SpeechRecognition = 
+                window.SpeechRecognition || 
+                window.webkitSpeechRecognition ||
+                window.msSpeechRecognition;
+
             if (!SpeechRecognition) {
                 throw new Error('Speech recognition is not supported in this browser. Please use Chrome or Edge.');
             }
@@ -18,6 +26,11 @@ class WebSpeechService {
             this.recognition.interimResults = true;
             this.recognition.lang = 'en-US';
             this.recognition.maxAlternatives = 1;
+
+            this.recognition.onstart = () => {
+                console.log('Speech recognition started');
+                this.lastStartTime = Date.now();
+            };
 
             this.recognition.onresult = (event) => {
                 if (this.onTranscriptionCallback) {
@@ -35,9 +48,16 @@ class WebSpeechService {
 
             this.recognition.onerror = (event) => {
                 console.error('Speech recognition error:', event.error);
-                if (event.error === 'not-allowed') {
+                
+                // Don't treat no-speech as an error, just restart
+                if (event.error === 'no-speech') {
+                    return;
+                }
+                
+                if (event.error === 'not-allowed' || event.error === 'service-not-allowed') {
                     this.isListening = false;
                 }
+                
                 if (this.onTranscriptionCallback) {
                     this.onTranscriptionCallback({
                         error: this.getErrorMessage(event.error)
@@ -46,21 +66,41 @@ class WebSpeechService {
             };
 
             this.recognition.onend = () => {
+                console.log('Speech recognition ended');
+                
                 if (this.isListening) {
-                    // Small delay before restarting to prevent rapid restarts
-                    setTimeout(() => {
+                    // Calculate time since last start
+                    const timeSinceStart = this.lastStartTime ? Date.now() - this.lastStartTime : Infinity;
+                    
+                    // Use a longer delay if we just started to prevent rapid restarts
+                    const delay = Math.max(this.minRestartDelay, 
+                        timeSinceStart < 1000 ? 1000 : 100);
+                    
+                    // Clear any existing timeout
+                    if (this.restartTimeout) {
+                        clearTimeout(this.restartTimeout);
+                    }
+                    
+                    // Set new timeout for restart
+                    this.restartTimeout = setTimeout(() => {
+                        if (!this.isListening) return;
+                        
                         try {
+                            console.log('Restarting speech recognition...');
                             this.recognition.start();
                         } catch (err) {
                             console.error('Error restarting recognition:', err);
-                            this.isListening = false;
-                            if (this.onTranscriptionCallback) {
-                                this.onTranscriptionCallback({
-                                    error: 'Recognition stopped unexpectedly'
-                                });
+                            // Only set error if it's not already restarting
+                            if (!err.message.includes('already started')) {
+                                this.isListening = false;
+                                if (this.onTranscriptionCallback) {
+                                    this.onTranscriptionCallback({
+                                        error: 'Recognition stopped unexpectedly'
+                                    });
+                                }
                             }
                         }
-                    }, 100);
+                    }, delay);
                 }
             };
 
@@ -85,6 +125,8 @@ class WebSpeechService {
                 return 'Speech recognition was aborted.';
             case 'audio-capture':
                 return 'No microphone was found. Ensure that a microphone is installed.';
+            case 'language-not-supported':
+                return 'The selected language is not supported.';
             default:
                 return `Speech recognition error: ${error}`;
         }
@@ -101,10 +143,12 @@ class WebSpeechService {
         
         this.onTranscriptionCallback = onTranscription;
         this.isListening = true;
+        this.lastStartTime = null;
         
         try {
             await this.recognition.start();
         } catch (err) {
+            // Only throw if it's not already started
             if (!err.message.includes('already started')) {
                 this.isListening = false;
                 throw err;
@@ -114,6 +158,12 @@ class WebSpeechService {
 
     stopRecording() {
         this.isListening = false;
+        
+        if (this.restartTimeout) {
+            clearTimeout(this.restartTimeout);
+            this.restartTimeout = null;
+        }
+        
         if (this.recognition) {
             try {
                 this.recognition.stop();
@@ -121,7 +171,9 @@ class WebSpeechService {
                 console.error('Error stopping recognition:', err);
             }
         }
+        
         this.onTranscriptionCallback = null;
+        this.lastStartTime = null;
     }
 
     disconnect() {
