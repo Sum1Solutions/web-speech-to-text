@@ -3,12 +3,12 @@ from fastapi.middleware.cors import CORSMiddleware
 import asyncio
 import json
 import ollama
-import pyaudio
 import wave
 import numpy as np
 from typing import List
 import io
 import base64
+import os
 
 app = FastAPI()
 
@@ -22,38 +22,41 @@ app.add_middleware(
 )
 
 # Audio configuration
-CHUNK = 1024
-FORMAT = pyaudio.paFloat32
 CHANNELS = 1
 RATE = 16000
 
 async def process_audio(audio_data: bytes) -> str:
     """Process audio data using Ollama's Whisper model."""
     try:
+        # Create a temporary directory if it doesn't exist
+        temp_dir = "temp_audio"
+        if not os.path.exists(temp_dir):
+            os.makedirs(temp_dir)
+            
+        temp_file = os.path.join(temp_dir, "temp.wav")
+        
         # Save audio data to a temporary WAV file
-        with wave.open("temp.wav", "wb") as wf:
+        with wave.open(temp_file, "wb") as wf:
             wf.setnchannels(CHANNELS)
             wf.setsampwidth(2)  # 16-bit
             wf.setframerate(RATE)
             wf.writeframes(audio_data)
         
-        # Use Ollama to transcribe
-        response = ollama.audio(
-            model='whisper',
-            audio='temp.wav',
-        )
-        
-        # Optionally post-process with a medical LLM
-        # response = ollama.chat(model='mistral', 
-        #     messages=[{
-        #         'role': 'system', 
-        #         'content': 'You are a medical transcription expert. Format and correct the following transcription, focusing on medical terminology:'
-        #     }, {
-        #         'role': 'user',
-        #         'content': response
-        #     }])
-
-        return response['response']
+        try:
+            # Use Ollama to transcribe
+            response = ollama.audio(
+                model='whisper',
+                audio=temp_file,
+            )
+            return response['response']
+        except Exception as e:
+            print(f"Ollama transcription error: {e}")
+            return ""
+        finally:
+            # Clean up temporary file
+            if os.path.exists(temp_file):
+                os.remove(temp_file)
+                
     except Exception as e:
         print(f"Error processing audio: {e}")
         return ""
@@ -61,26 +64,41 @@ async def process_audio(audio_data: bytes) -> str:
 @app.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket):
     await websocket.accept()
+    print("WebSocket connection established")
     
     try:
         while True:
             # Receive audio data as base64 string
             data = await websocket.receive_text()
-            audio_data = base64.b64decode(data)
-            
-            # Process the audio
-            text = await process_audio(audio_data)
-            
-            # Send back the transcribed text
-            await websocket.send_text(json.dumps({
-                "text": text,
-                "isFinal": True
-            }))
+            try:
+                audio_data = base64.b64decode(data)
+                
+                # Process the audio
+                text = await process_audio(audio_data)
+                
+                if text:
+                    # Send back the transcribed text
+                    await websocket.send_text(json.dumps({
+                        "text": text,
+                        "isFinal": True
+                    }))
+                else:
+                    await websocket.send_text(json.dumps({
+                        "error": "Failed to transcribe audio",
+                        "isFinal": True
+                    }))
+            except Exception as e:
+                print(f"Error processing message: {e}")
+                await websocket.send_text(json.dumps({
+                    "error": str(e),
+                    "isFinal": True
+                }))
     except Exception as e:
         print(f"WebSocket error: {e}")
     finally:
+        print("WebSocket connection closed")
         await websocket.close()
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="127.0.0.1", port=8000)
+    uvicorn.run(app, host="127.0.0.1", port=5001)

@@ -10,7 +10,7 @@ services:
       - /app/node_modules
     environment:
       - REACT_APP_OLLAMA_URL=http://ollama:11434
-      - REACT_APP_SERVER_URL=http://server:5000
+      - REACT_APP_SERVER_URL=http://server:5001
     depends_on:
       - ollama
       - server
@@ -26,13 +26,13 @@ services:
   server:
     build: ./server
     ports:
-      - "5000:5000"
+      - "5001:5001"
     environment:
       - OLLAMA_URL=http://ollama:11434
     depends_on:
       - ollama
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:5000/health"]
+      test: ["CMD", "curl", "-f", "http://localhost:5001/health"]
       interval: 10s
       timeout: 5s
       retries: 3
@@ -45,18 +45,6 @@ services:
       - "11434:11434"
     volumes:
       - ollama:/root/.ollama
-    deploy:
-      resources:
-        reservations:
-          devices:
-            - driver: nvidia
-              count: all
-              capabilities: [gpu]
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:11434/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
     profiles:
       - full
 

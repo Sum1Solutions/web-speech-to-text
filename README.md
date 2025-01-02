@@ -1,6 +1,6 @@
 # Web Speech-to-Text
 
-A modern, privacy-focused speech recognition application built with React. Offers both cloud-based and HIPAA-compliant local processing options.
+A modern, privacy-focused speech recognition application built with React. Choose from three deployment options based on your needs.
 
 ## Key Features
 
@@ -13,31 +13,64 @@ A modern, privacy-focused speech recognition application built with React. Offer
 - Voice commands
 - Mobile-responsive design
 
-## Processing Options
+## Deployment Options
 
-### 1. Web Speech API (Default)
-- Zero setup required
-- Fast, real-time processing
-- Uses cloud services:
-  - Chrome: Google's servers
-  - Edge: Microsoft's servers
-- Not HIPAA compliant
-- Best for general use
+### 1. Simple React App (Simplest)
+- Just run `npm start`
+- Uses browser's Web Speech API
+- No Docker required
+- Perfect for quick testing and development
+```bash
+cd packages/core
+npm install
+npm start
+```
 
-### 2. Local Processing (HIPAA Compliant)
-- 100% private - runs entirely on your machine
-- HIPAA compliant
-- Customizable with medical-specific models
-- Uses Ollama with Whisper model
-- Ideal for medical/healthcare settings
+### 2. Dockerized Web App (Recommended)
+- Containerized frontend
+- Uses browser's Web Speech API
+- Consistent environment across platforms
+```bash
+cd packages/docker
+./start.sh
+```
+
+### 3. Full Local Processing (HIPAA-Compliant)
+- Complete privacy with local processing
+- Uses Ollama for speech recognition
+- HIPAA-compliant
+- Ideal for healthcare settings
+```bash
+cd packages/full
+./start.sh
+```
+
+## Features by Version
+
+| Feature                    | Simple | Docker | Full |
+|---------------------------|---------|---------|------|
+| Speech-to-Text            | ✅      | ✅      | ✅   |
+| Real-time Transcription   | ✅      | ✅      | ✅   |
+| Dark/Light Mode           | ✅      | ✅      | ✅   |
+| Containerized             | ❌      | ✅      | ✅   |
+| Local Processing          | ❌      | ❌      | ✅   |
+| HIPAA Compliant           | ❌      | ❌      | ✅   |
+| GPU Acceleration          | ❌      | ❌      | ✅   |
 
 ## Prerequisites
 
+### Simple Version
 - Node.js 14+
 - npm or yarn
-- For local processing:
-  - Python 3.8+
-  - [Ollama](https://ollama.ai)
+
+### Docker Version
+- Docker Desktop
+- Docker Compose
+
+### Full Version
+- Docker Desktop
+- Docker Compose
+- NVIDIA GPU (optional, for better performance)
 
 ## Quick Start with Docker (Recommended)
 
@@ -138,6 +171,14 @@ To use the HIPAA-compliant local processing:
 
 ## Development
 
+Each package can be developed independently:
+
+- **core**: Basic React app with browser-based speech recognition
+- **docker**: Adds containerization for consistent deployment
+- **full**: Adds local processing with Ollama
+
+See each package's README for specific development instructions.
+
 ### Branch Strategy
 - `main`: Production-ready code
 - `feature/*`: New features
@@ -152,64 +193,15 @@ To use the HIPAA-compliant local processing:
 npm test
 ```
 
-## Deployment
-
-### Standard Deployment
-1. Build the production version:
-   ```bash
-   npm run build
-   ```
-2. Deploy the `build` folder to your hosting service
-
-### HIPAA-Compliant Deployment
-For medical/healthcare settings:
-1. Deploy on private infrastructure
-2. Ensure server runs locally
-3. Configure firewall rules
-4. Implement access controls
-5. Set up audit logging
-
-## Privacy & Security
-
-### Data Handling
-- Web Speech API:
-  - Audio processed on Google/Microsoft servers
-  - No data stored permanently
-  - Subject to cloud provider privacy policies
-
-- Local Processing:
-  - All data stays on your machine
-  - No external connections
-  - Compliant with HIPAA requirements
-  - Suitable for sensitive information
-
-### Security Recommendations
-1. Use Local Processing for medical data
-2. Keep Ollama and dependencies updated
-3. Implement access controls
-4. Monitor system logs
-5. Regular security audits
-
 ## Contributing
 
-1. Fork the repository
-2. Create your feature branch:
-   ```bash
-   git checkout -b feature/amazing-feature
-   ```
-3. Commit your changes:
-   ```bash
-   git commit -m 'Add amazing feature'
-   ```
-4. Push to the branch:
-   ```bash
-   git push origin feature/amazing-feature
-   ```
-5. Open a Pull Request
+1. Choose the appropriate package for your contribution
+2. Make your changes
+3. Submit a PR to the relevant package
 
 ## License
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+MIT License - See LICENSE file for details
 
 ## Support
 
