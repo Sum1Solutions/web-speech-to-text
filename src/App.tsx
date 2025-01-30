@@ -1,14 +1,17 @@
 import React from 'react';
 import SpeechToText from './components/SpeechToText';
 import ErrorBoundary from './components/ErrorBoundary';
+import { ThemeProvider } from './contexts/ThemeContext';
 
-const App: React.FC = () => {
+function App() {
   return (
-    <div className="App">
-      <ErrorBoundary>
-        <SpeechToText />
-      </ErrorBoundary>
-    </div>
+    <ThemeProvider>
+      <div className="min-h-screen bg-white dark:bg-gray-900 transition-colors">
+        <ErrorBoundary>
+          <SpeechToText />
+        </ErrorBoundary>
+      </div>
+    </ThemeProvider>
   );
 }
 

@@ -71,8 +71,6 @@ src/
 - Use only for general, non-sensitive information
 - Consider this tool as a general-purpose transcription utility only
 
-For medical practices and healthcare providers: Please use HIPAA-compliant solutions for handling any patient-related information.
-
 ## Technical Details
 
 ### TypeScript Integration
