@@ -1,18 +1,24 @@
-import React, { useState, useRef, useEffect, useCallback } from 'react';
+import React, { useState, useRef, useEffect, useCallback, ChangeEvent } from 'react';
+import { debounce } from 'lodash';
+import { useSpeechRecognition } from '../hooks/useSpeechRecognition';
+
+interface Transcript {
+  text: string;
+  isFinal: boolean;
+}
 
 const MAX_VISIBLE_BUBBLES = 10;
+const DEBOUNCE_DELAY = 300;
 
-const SpeechToText = () => {
-  const [isListening, setIsListening] = useState(false);
-  const [transcripts, setTranscripts] = useState([]);
+const SpeechToText: React.FC = () => {
+  const [transcripts, setTranscripts] = useState<Transcript[]>([]);
   const [collectedText, setCollectedText] = useState('');
   const [autoCopy, setAutoCopy] = useState(true);
   const [showBubbles, setShowBubbles] = useState(true);
-  const [error, setError] = useState(null);
-  const processedResultsRef = useRef(new Set());
-  const recognitionRef = useRef(null);
-  const textareaRef = useRef(null);
-  const transcriptsContainerRef = useRef(null);
+  const [error, setError] = useState<string | null>(null);
+  const processedResultsRef = useRef(new Set<string>());
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const transcriptsContainerRef = useRef<HTMLDivElement>(null);
 
   const clearTranscripts = useCallback(() => {
     setTranscripts([]);
@@ -21,17 +27,7 @@ const SpeechToText = () => {
     setError(null);
   }, []);
 
-  const stopListening = useCallback(() => {
-    setError(null);
-    setIsListening(false);
-  }, []);
-
-  const startListening = useCallback(() => {
-    setError(null);
-    setIsListening(true);
-  }, []);
-
-  const copyToClipboard = useCallback(async (text = collectedText) => {
+  const copyToClipboard = useCallback(async (text: string = collectedText) => {
     if (!text) return;
     
     try {
@@ -53,11 +49,8 @@ const SpeechToText = () => {
     }
   }, [collectedText, autoCopy]);
 
-  const handleSpeechResult = useCallback((event) => {
+  const handleSpeechResult = useCallback((transcript: string, isFinal: boolean) => {
     setError(null);
-    const current = event.resultIndex;
-    const transcript = event.results[current][0].transcript;
-    const isFinal = event.results[current].isFinal;
     
     // Check for voice commands
     if (isFinal) {
@@ -72,14 +65,14 @@ const SpeechToText = () => {
       }
     }
     
-    const resultId = `${current}-${transcript}`;
+    const resultId = `${transcript}-${Date.now()}`;
     
     setTranscripts(prevTranscripts => {
       let newTranscripts = [...prevTranscripts];
       if (newTranscripts.length > 0 && !isFinal) {
-        newTranscripts[newTranscripts.length - 1] = transcript;
+        newTranscripts[newTranscripts.length - 1] = { text: transcript, isFinal };
       } else {
-        newTranscripts.push(transcript);
+        newTranscripts.push({ text: transcript, isFinal });
         if (newTranscripts.length > MAX_VISIBLE_BUBBLES) {
           newTranscripts = newTranscripts.slice(-MAX_VISIBLE_BUBBLES);
         }
@@ -97,93 +90,43 @@ const SpeechToText = () => {
       }
       return newTranscripts;
     });
-  }, [autoCopy, clearTranscripts, copyToClipboard, stopListening]);
+  }, [autoCopy, clearTranscripts, copyToClipboard]);
 
-  const handleSpeechError = useCallback((event) => {
+  const handleSpeechError = useCallback((event: Event & { error: string; message: string }) => {
     console.error('Speech recognition error:', event.error);
-    if (event.error === 'not-allowed') {
-      setError('Microphone access denied. Please allow microphone access and try again.');
-    } else if (event.error === 'service-not-allowed') {
-      setError('Speech recognition service is not available. Please try again later.');
-    } else if (event.error === 'no-speech') {
-      setError('Auto stopped listening. Click the button to restart listening.');
-    } else {
-      setError(`Speech recognition error: ${event.error}`);
-    }
-    setIsListening(false);
+    const errorMessages: Record<string, string> = {
+      'not-allowed': 'Microphone access denied. Please allow microphone access and try again.',
+      'service-not-allowed': 'Speech recognition service is not available. Please try again later.',
+      'no-speech': 'No speech detected. Click the button to restart listening.',
+      'network': 'Network error occurred. Attempting to reconnect...',
+      'aborted': 'Speech recognition was aborted. Click to restart.',
+      'audio-capture': 'No microphone was found. Please verify your audio input.',
+      'bad-grammar': 'Grammar error occurred in speech recognition.',
+      'language-not-supported': 'The selected language is not supported.',
+      'start_error': 'Failed to start speech recognition. Please try again.'
+    };
+
+    const errorMessage = errorMessages[event.error] || `Speech recognition error: ${event.error}`;
+    setError(errorMessage);
   }, []);
 
-  const handleSpeechEnd = useCallback(() => {
-    if (isListening && recognitionRef.current) {
-      try {
-        recognitionRef.current.start();
-      } catch (err) {
-        console.error('Error restarting recognition:', err);
-        setIsListening(false);
-        setError('Recognition stopped unexpectedly. Please click Start Listening to begin again.');
-      }
-    }
-  }, [isListening]);
+  const { isListening, startListening, stopListening } = useSpeechRecognition({
+    onResult: handleSpeechResult,
+    onError: handleSpeechError,
+    onEnd: () => {}
+  });
 
-  // Initialize recognition
-  useEffect(() => {
-    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition || window.msSpeechRecognition;
-    if (!SpeechRecognition) {
-      setError('Speech recognition is not supported in this browser. Please use Chrome or Edge.');
-      return;
-    }
-
-    const recognition = new SpeechRecognition();
-    recognition.continuous = true;
-    recognition.interimResults = true;
-    recognition.lang = 'en-US';
-
-    // Ensure consistent behavior across browsers
-    recognition.maxAlternatives = 1;
-
-    recognition.onresult = handleSpeechResult;
-    recognition.onerror = handleSpeechError;
-    recognition.onend = handleSpeechEnd;
-
-    recognitionRef.current = recognition;
-
-    return () => {
-      if (recognitionRef.current) {
-        try {
-          recognitionRef.current.stop();
-        } catch (err) {
-          console.error('Error cleaning up recognition:', err);
-        }
-      }
-    };
-  }, [handleSpeechResult, handleSpeechError, handleSpeechEnd]);
-
-  // Handle listening state changes
-  useEffect(() => {
-    if (!recognitionRef.current) return;
-
-    if (isListening) {
-      try {
-        recognitionRef.current.start();
-      } catch (err) {
-        if (!err.message.includes('already started')) {
-          console.error('Error starting recognition:', err);
-          setError('Failed to start speech recognition. Please try again.');
-          setIsListening(false);
-        }
-      }
-    } else {
-      try {
-        recognitionRef.current.stop();
-      } catch (err) {
-        console.error('Error stopping recognition:', err);
-      }
-    }
-  }, [isListening]);
-
-  const handleAutoCopyChange = useCallback((e) => {
+  const handleAutoCopyChange = useCallback((e: ChangeEvent<HTMLInputElement>) => {
     setAutoCopy(e.target.checked);
   }, []);
+
+  const handleShowBubblesChange = useCallback((e: ChangeEvent<HTMLInputElement>) => {
+    setShowBubbles(e.target.checked);
+  }, []);
+
+  const handleTextAreaChange = debounce((e: ChangeEvent<HTMLTextAreaElement>) => {
+    setCollectedText(e.target.value);
+  }, DEBOUNCE_DELAY);
 
   // Scroll to bottom when new text is added to textarea
   useEffect(() => {
@@ -200,11 +143,22 @@ const SpeechToText = () => {
   }, [transcripts, showBubbles]);
 
   return (
-    <div className="flex flex-col h-screen max-h-screen p-4 bg-gray-100 dark:bg-gray-800">
+    <div 
+      className="flex flex-col h-screen max-h-screen p-4 bg-gray-100 dark:bg-gray-800"
+      role="application"
+      aria-label="Speech to Text Converter"
+    >
       {/* Status Bar */}
-      <div className="flex items-center justify-between mb-4 text-sm">
+      <div 
+        className="flex items-center justify-between mb-4 text-sm"
+        role="status"
+        aria-live="polite"
+      >
         <div className="flex items-center gap-2">
-          <div className={`h-3 w-3 rounded-full ${isListening ? 'bg-red-500 animate-pulse' : 'bg-gray-400'}`} />
+          <div 
+            className={`h-3 w-3 rounded-full ${isListening ? 'bg-red-500 animate-pulse' : 'bg-gray-400'}`}
+            role="presentation"
+          />
           <span className="text-gray-600 dark:text-gray-300">
             {isListening ? 'Listening...' : 'Microphone off'}
           </span>
@@ -212,22 +166,40 @@ const SpeechToText = () => {
       </div>
 
       {error && (
-        <div className="mb-4 p-3 bg-red-100 dark:bg-red-900 text-red-700 dark:text-red-200 rounded-lg">
+        <div 
+          className="mb-4 p-3 bg-red-100 dark:bg-red-900 text-red-700 dark:text-red-200 rounded-lg"
+          role="alert"
+          aria-live="assertive"
+        >
           {error}
         </div>
       )}
+
+      {/* HIPAA Warning */}
+      <div 
+        className="mb-4 p-4 bg-yellow-100 dark:bg-yellow-900 rounded-lg shadow text-sm border-l-4 border-yellow-500"
+        role="alert"
+      >
+        <h3 className="font-bold mb-2 text-yellow-800 dark:text-yellow-200">⚠️ Not HIPAA Compliant</h3>
+        <p className="text-yellow-700 dark:text-yellow-300 mb-2">
+          This tool is not HIPAA compliant. Do not disclose any Protected Health Information (PHI) or sensitive medical data.
+        </p>
+        <p className="text-yellow-600 dark:text-yellow-400 text-xs">
+          For medical practices: Use HIPAA-compliant solutions for patient information.
+        </p>
+      </div>
 
       {/* Transcripts */}
       <div 
         ref={transcriptsContainerRef}
         className="flex-1 overflow-y-auto mb-4 space-y-2 min-h-0"
       >
-        {showBubbles && transcripts.map((text, index) => (
+        {showBubbles && transcripts.map((transcript, index) => (
           <div 
             key={index} 
             className="bg-white dark:bg-gray-700 p-3 rounded-lg shadow text-gray-800 dark:text-gray-200 break-words"
           >
-            {text}
+            {transcript.text}
           </div>
         ))}
       </div>
@@ -237,15 +209,18 @@ const SpeechToText = () => {
         <textarea
           ref={textareaRef}
           value={collectedText}
-          onChange={(e) => setCollectedText(e.target.value)}
+          onChange={handleTextAreaChange}
           className="w-full p-3 rounded-lg shadow bg-white dark:bg-gray-700 text-gray-800 dark:text-gray-200 resize-none transition-colors duration-200"
           rows={4}
           placeholder="Transcribed text will appear here..."
+          aria-label="Transcribed text"
+          role="textbox"
         />
         <button
           onClick={() => copyToClipboard()}
           className="absolute right-2 top-2 p-2 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
           title="Copy to clipboard"
+          aria-label="Copy to clipboard"
         >
           📋
         </button>
@@ -284,7 +259,7 @@ const SpeechToText = () => {
             <input
               type="checkbox"
               checked={showBubbles}
-              onChange={(e) => setShowBubbles(e.target.checked)}
+              onChange={handleShowBubblesChange}
               className="form-checkbox h-5 w-5"
             />
             <span>Show bubbles</span>

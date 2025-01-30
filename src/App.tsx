@@ -1,10 +1,13 @@
 import React from 'react';
 import SpeechToText from './components/SpeechToText';
+import ErrorBoundary from './components/ErrorBoundary';
 
-function App() {
+const App: React.FC = () => {
   return (
     <div className="App">
-      <SpeechToText />
+      <ErrorBoundary>
+        <SpeechToText />
+      </ErrorBoundary>
     </div>
   );
 }
