@@ -7,12 +7,12 @@ const ThemeToggle: React.FC = () => {
 
   return (
     <div className="flex items-center gap-2">
-      <span className="text-sm text-gray-600 dark:text-gray-300">
+      <span className="text-xs sm:text-sm text-gray-600 dark:text-gray-300">
         {isDark ? 'Dark' : 'Light'} Mode
       </span>
       <button
         onClick={toggleTheme}
-        className={`relative inline-flex items-center h-8 rounded-full w-16 transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+        className={`relative inline-flex items-center h-6 sm:h-8 rounded-full w-12 sm:w-16 transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500 ${
           isDark 
             ? 'bg-gray-700 hover:bg-gray-600' 
             : 'bg-blue-100 hover:bg-blue-200'
@@ -24,11 +24,11 @@ const ThemeToggle: React.FC = () => {
         <span className="sr-only">Toggle dark mode</span>
         <div
           className={`absolute left-1 transform transition-transform duration-200 ${
-            isDark ? 'translate-x-8' : 'translate-x-0'
+            isDark ? 'translate-x-6 sm:translate-x-8' : 'translate-x-0'
           }`}
         >
-          <div className="flex items-center justify-center w-6 h-6 rounded-full shadow-md bg-white dark:bg-gray-800">
-            <span className="text-sm" role="img" aria-hidden="true">
+          <div className="flex items-center justify-center w-4 sm:w-6 h-4 sm:h-6 rounded-full shadow-md bg-white dark:bg-gray-800">
+            <span className="text-xs sm:text-sm" role="img" aria-hidden="true">
               {isDark ? '🌙' : '☀️'}
             </span>
           </div>
