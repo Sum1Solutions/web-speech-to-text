@@ -12,8 +12,8 @@ const Help: React.FC<HelpProps> = ({ isOpen, onClose }) => {
     <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
       <div className="bg-white dark:bg-gray-800 rounded-lg max-w-2xl w-full max-h-[90vh] overflow-y-auto shadow-xl">
         <div className="p-6">
-          <div className="flex justify-between items-start mb-4">
-            <h2 className="text-2xl font-bold text-gray-900 dark:text-gray-100">How to Use Speech to Text</h2>
+          <div className="flex justify-between items-start mb-6">
+            <h2 className="text-2xl font-bold text-gray-900 dark:text-gray-100">Speech to Text Help</h2>
             <button
               onClick={onClose}
               className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
@@ -24,51 +24,88 @@ const Help: React.FC<HelpProps> = ({ isOpen, onClose }) => {
           </div>
           
           <div className="space-y-6 text-gray-700 dark:text-gray-300">
+            <section className="bg-yellow-50 dark:bg-yellow-900/30 p-4 rounded-lg border-l-4 border-yellow-500">
+              <h3 className="text-lg font-semibold mb-2 text-yellow-800 dark:text-yellow-200 flex items-center gap-2">
+                <span>🔒</span> Privacy Notice
+              </h3>
+              <p className="text-yellow-700 dark:text-yellow-300">
+                Audio is processed through your browser's speech service (Google for Chrome/Edge, Apple for Safari). 
+                Text stays in your browser, but audio processing happens on external servers. Not suitable for sensitive information.
+              </p>
+            </section>
+
             <section>
-              <h3 className="text-lg font-semibold mb-2 text-gray-800 dark:text-gray-200">Quick Start</h3>
-              <ol className="list-decimal list-inside space-y-2">
-                <li>Click the "Start Listening" button to begin speech recognition</li>
-                <li>Speak clearly into your microphone</li>
-                <li>Click "Stop Listening" when you're done</li>
-                <li>Your text will appear in the text area below</li>
+              <h3 className="text-lg font-semibold mb-3 text-gray-800 dark:text-gray-200 flex items-center gap-2">
+                <span>🎯</span> Quick Start
+              </h3>
+              <ol className="list-none space-y-2">
+                <li className="flex items-center gap-2">
+                  <span className="text-blue-500">1.</span> Click "Start Listening"
+                </li>
+                <li className="flex items-center gap-2">
+                  <span className="text-blue-500">2.</span> Speak into your microphone
+                </li>
+                <li className="flex items-center gap-2">
+                  <span className="text-blue-500">3.</span> Text appears in real-time
+                </li>
               </ol>
             </section>
 
             <section>
-              <h3 className="text-lg font-semibold mb-2 text-gray-800 dark:text-gray-200">Features</h3>
-              <ul className="list-disc list-inside space-y-2">
-                <li><strong>Speech Bubbles:</strong> Show real-time transcription (gray) and final results (blue)</li>
-                <li><strong>Auto-copy:</strong> Automatically copies final text to your clipboard</li>
-                <li><strong>Manual Copy:</strong> Use the clipboard icon to copy all text</li>
-                <li><strong>Dark Mode:</strong> Toggle between light and dark themes</li>
+              <h3 className="text-lg font-semibold mb-3 text-gray-800 dark:text-gray-200 flex items-center gap-2">
+                <span>⚡</span> Features
+              </h3>
+              <ul className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <li className="flex items-center gap-2">
+                  <span className="text-blue-500">💬</span> Live transcription bubbles
+                </li>
+                <li className="flex items-center gap-2">
+                  <span className="text-blue-500">📋</span> Auto-copy to clipboard
+                </li>
+                <li className="flex items-center gap-2">
+                  <span className="text-blue-500">🌙</span> Dark mode support
+                </li>
+                <li className="flex items-center gap-2">
+                  <span className="text-blue-500">🎤</span> Voice commands
+                </li>
+              </ul>
+              <div className="mt-3 flex items-start gap-2 text-sm bg-blue-50 dark:bg-blue-900/30 p-3 rounded-lg">
+                <span className="text-blue-500">💡</span>
+                <p className="text-blue-700 dark:text-blue-300">
+                  Using Edge browser? It automatically adds punctuation to your speech!
+                </p>
+              </div>
+            </section>
+
+            <section>
+              <h3 className="text-lg font-semibold mb-3 text-gray-800 dark:text-gray-200 flex items-center gap-2">
+                <span>🗣️</span> Voice Commands
+              </h3>
+              <ul className="space-y-2">
+                <li className="flex items-center gap-2">
+                  <span className="text-blue-500">🛑</span> Say "stop listening" to stop
+                </li>
+                <li className="flex items-center gap-2">
+                  <span className="text-blue-500">🗑️</span> Say "clear clear" to reset
+                </li>
               </ul>
             </section>
 
             <section>
-              <h3 className="text-lg font-semibold mb-2 text-gray-800 dark:text-gray-200">Voice Commands</h3>
-              <ul className="list-disc list-inside space-y-2">
-                <li><strong>"stop listening"</strong> - Stops the recording</li>
-                <li><strong>"clear clear"</strong> - Clears all text</li>
+              <h3 className="text-lg font-semibold mb-3 text-gray-800 dark:text-gray-200 flex items-center gap-2">
+                <span>💡</span> Tips
+              </h3>
+              <ul className="space-y-2">
+                <li className="flex items-center gap-2">
+                  <span className="text-blue-500">🎙️</span> Use a good microphone
+                </li>
+                <li className="flex items-center gap-2">
+                  <span className="text-blue-500">🔊</span> Speak clearly at normal speed
+                </li>
+                <li className="flex items-center gap-2">
+                  <span className="text-blue-500">✅</span> Allow microphone access
+                </li>
               </ul>
-            </section>
-
-            <section>
-              <h3 className="text-lg font-semibold mb-2 text-gray-800 dark:text-gray-200">Tips</h3>
-              <ul className="list-disc list-inside space-y-2">
-                <li>Speak clearly and at a normal pace</li>
-                <li>Use a good quality microphone for better results</li>
-                <li>Allow microphone access when prompted</li>
-                <li>Check the status indicator to ensure it's listening</li>
-              </ul>
-            </section>
-
-            <section className="bg-blue-50 dark:bg-blue-900/30 p-4 rounded-lg">
-              <h3 className="text-lg font-semibold mb-2 text-blue-800 dark:text-blue-200">Privacy Note</h3>
-              <p className="text-blue-700 dark:text-blue-300">
-                This tool uses your browser's built-in speech recognition service (Google's servers for Chrome/Edge, Apple's for Safari). 
-                Audio is processed through these services to provide transcription. The resulting text stays in your browser, but the audio processing is not done locally.
-                This tool is not HIPAA compliant, so please do not share any sensitive information.
-              </p>
             </section>
           </div>
         </div>

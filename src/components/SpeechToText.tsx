@@ -201,8 +201,12 @@ const SpeechToText: React.FC = () => {
 
       {/* HIPAA Warning */}
       <div 
-        className="mb-4 p-3 sm:p-4 bg-yellow-100 dark:bg-yellow-900 rounded-lg shadow text-sm border-l-4 border-yellow-500"
-        role="alert"
+        onClick={() => setIsHelpOpen(true)}
+        className="mb-4 p-3 sm:p-4 bg-yellow-100 dark:bg-yellow-900 rounded-lg shadow text-sm border-l-4 border-yellow-500 cursor-pointer hover:bg-yellow-200 dark:hover:bg-yellow-900/70 transition-colors"
+        role="button"
+        tabIndex={0}
+        onKeyDown={(e) => e.key === 'Enter' && setIsHelpOpen(true)}
+        aria-label="Click for more information about privacy and data handling"
       >
         <h3 className="font-bold mb-2 text-yellow-800 dark:text-yellow-200">⚠️ Not HIPAA Compliant</h3>
         <p className="text-yellow-700 dark:text-yellow-300">
