@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect, useCallback, ChangeEvent } from 're
 import { debounce } from 'lodash';
 import { useSpeechRecognition } from '../hooks/useSpeechRecognition';
 import ThemeToggle from './ThemeToggle';
+import Help from './Help';
 
 interface Transcript {
   text: string;
@@ -17,10 +18,12 @@ const SpeechToText: React.FC = () => {
   const [autoCopy, setAutoCopy] = useState(true);
   const [showBubbles, setShowBubbles] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [isHelpOpen, setIsHelpOpen] = useState(false);
   const processedResultsRef = useRef(new Set<string>());
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const transcriptsContainerRef = useRef<HTMLDivElement>(null);
   const shouldStopRef = useRef(false);
+  const autoCopyRef = useRef(true);
 
   const clearTranscripts = useCallback(() => {
     setTranscripts([]);
@@ -99,27 +102,37 @@ const SpeechToText: React.FC = () => {
         processedResultsRef.current.add(resultId);
         setCollectedText(prevText => {
           const newText = prevText + (prevText ? ' ' : '') + transcript;
-          // Only attempt to copy if auto-copy is enabled
-          if (autoCopy) {
-            try {
-              navigator.clipboard.writeText(newText).catch(() => {
+          if (autoCopyRef.current) {
+            navigator.clipboard.writeText(newText)
+              .then(() => {
+                if (textareaRef.current) {
+                  textareaRef.current.style.backgroundColor = '#4ade80';
+                  setTimeout(() => {
+                    if (textareaRef.current) {
+                      textareaRef.current.style.backgroundColor = '';
+                    }
+                  }, 200);
+                }
+              })
+              .catch(() => {
                 // Silently fail if auto-copy fails
                 // Only show errors for manual copy attempts
               });
-            } catch {
-              // Catch any synchronous errors and ignore them for auto-copy
-            }
           }
           return newText;
         });
       }
       return newTranscripts;
     });
-  }, [autoCopy, clearTranscripts]);
+  }, [clearTranscripts]);
 
   const handleAutoCopyChange = useCallback((e: ChangeEvent<HTMLInputElement>) => {
-    setAutoCopy(e.target.checked);
-  }, []);
+    const newAutoCopy = e.target.checked;
+    setAutoCopy(newAutoCopy);
+    if (newAutoCopy && collectedText) {
+      copyToClipboard(collectedText, true);
+    }
+  }, [collectedText, copyToClipboard]);
 
   const handleTextAreaChange = debounce((e: ChangeEvent<HTMLTextAreaElement>) => {
     setCollectedText(e.target.value);
@@ -140,14 +153,16 @@ const SpeechToText: React.FC = () => {
     }
   });
 
-  // Scroll to bottom when new text is added to textarea
+  useEffect(() => {
+    autoCopyRef.current = autoCopy;
+  }, [autoCopy]);
+
   useEffect(() => {
     if (textareaRef.current) {
       textareaRef.current.scrollTop = textareaRef.current.scrollHeight;
     }
   }, [collectedText]);
 
-  // Scroll to bottom when new transcripts are added
   useEffect(() => {
     if (transcriptsContainerRef.current && showBubbles) {
       transcriptsContainerRef.current.scrollTop = transcriptsContainerRef.current.scrollHeight;
@@ -168,7 +183,20 @@ const SpeechToText: React.FC = () => {
             {isListening ? 'Listening...' : 'Not listening'}
           </span>
         </div>
-        <ThemeToggle />
+        <div className="flex items-center gap-4">
+          <ThemeToggle />
+          <button
+            onClick={() => setIsHelpOpen(true)}
+            className="flex items-center gap-2 px-3 py-2 text-sm font-medium bg-blue-50 hover:bg-blue-100 dark:bg-blue-900/30 dark:hover:bg-blue-900/50 text-blue-600 dark:text-blue-400 rounded-lg transition-colors"
+            aria-label="Open help"
+            title="How to use"
+          >
+            <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg">
+              <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+            </svg>
+            <span>Help</span>
+          </button>
+        </div>
       </div>
 
       {/* HIPAA Warning */}
@@ -178,7 +206,7 @@ const SpeechToText: React.FC = () => {
       >
         <h3 className="font-bold mb-2 text-yellow-800 dark:text-yellow-200">⚠️ Not HIPAA Compliant</h3>
         <p className="text-yellow-700 dark:text-yellow-300">
-          This tool is not HIPAA compliant. Do not disclose any Protected Health Information (PHI) or sensitive medical data.
+          This tool is not HIPAA compliant. Do not disclose any Protected Health Information (PHI) or sensitive data (medical or otherwise).
         </p>
       </div>
 
@@ -267,13 +295,16 @@ const SpeechToText: React.FC = () => {
         />
         <button
           onClick={() => copyToClipboard(collectedText, true)}
-          className="absolute right-2 top-2 p-2 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
+          className="absolute right-2 bottom-2 p-2 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 bg-white dark:bg-gray-800 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
           title="Copy to clipboard"
           aria-label="Copy to clipboard"
         >
           📋
         </button>
       </div>
+
+      {/* Help Modal */}
+      <Help isOpen={isHelpOpen} onClose={() => setIsHelpOpen(false)} />
     </div>
   );
 };
