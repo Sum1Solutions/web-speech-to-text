@@ -1,5 +1,4 @@
-import React, { useState, useRef, useEffect, useCallback, ChangeEvent } from 'react';
-import { debounce } from 'lodash';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { useSpeechRecognition } from '../hooks/useSpeechRecognition';
 import ThemeToggle from './ThemeToggle';
 import Help from './Help';
@@ -10,7 +9,6 @@ interface Transcript {
 }
 
 const MAX_VISIBLE_BUBBLES = 10;
-const DEBOUNCE_DELAY = 300;
 
 const SpeechToText: React.FC = () => {
   const [transcripts, setTranscripts] = useState<Transcript[]>([]);
@@ -22,8 +20,8 @@ const SpeechToText: React.FC = () => {
   const processedResultsRef = useRef(new Set<string>());
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const transcriptsContainerRef = useRef<HTMLDivElement>(null);
-  const shouldStopRef = useRef(false);
   const autoCopyRef = useRef(true);
+  const stopListeningRef = useRef<() => void>(() => {});
 
   const clearTranscripts = useCallback(() => {
     setTranscripts([]);
@@ -32,7 +30,7 @@ const SpeechToText: React.FC = () => {
     setError(null);
   }, []);
 
-  const copyToClipboard = useCallback(async (text: string = collectedText, force: boolean = false) => {
+  const copyToClipboard = useCallback(async (text: string = collectedText) => {
     if (!text) return;
     
     try {
@@ -50,6 +48,10 @@ const SpeechToText: React.FC = () => {
       setError('Failed to copy text to clipboard');
     }
   }, [collectedText]);
+
+  const handleShowBubblesChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    setShowBubbles(e.target.checked);
+  }, []);
 
   const handleSpeechError = useCallback((event: Event & { error: string; message: string }) => {
     console.error('Speech recognition error:', event.error);
@@ -74,84 +76,84 @@ const SpeechToText: React.FC = () => {
     
     // Check for voice commands
     if (isFinal) {
-      const command = transcript.trim().toLowerCase();
-      if (command === "clear clear") {
+      const normalizedText = transcript.toLowerCase().replace(/[.,!?]/g, '');
+      
+      // Check for "clear" command - both words must be present
+      if (normalizedText.includes('clear') && 
+          (normalizedText.match(/clear/g) || []).length >= 2) {
         clearTranscripts();
         return;
       }
-      if (command === "stop listening") {
-        shouldStopRef.current = true;
+      
+      // Check for "stop listening" command - both words must be present
+      if (normalizedText.includes('stop') && normalizedText.includes('listening')) {
+        stopListeningRef.current?.();
         return;
+      }
+
+      // Update text area with final result if we haven't processed it
+      if (!processedResultsRef.current.has(transcript)) {
+        processedResultsRef.current.add(transcript);
+        setCollectedText(prevText => prevText + (prevText ? ' ' : '') + transcript);
+        if (autoCopyRef.current) {
+          const newText = collectedText + (collectedText ? ' ' : '') + transcript;
+          copyToClipboard(newText);
+        }
       }
     }
     
-    const resultId = `${transcript}-${Date.now()}`;
-    
+    // Update transcripts bubbles
     setTranscripts(prevTranscripts => {
       let newTranscripts = [...prevTranscripts];
-      if (newTranscripts.length > 0 && !isFinal) {
-        newTranscripts[newTranscripts.length - 1] = { text: transcript, isFinal };
+      
+      // Handle interim results
+      if (!isFinal) {
+        // Update or add interim result
+        if (newTranscripts.length > 0 && !newTranscripts[newTranscripts.length - 1].isFinal) {
+          newTranscripts[newTranscripts.length - 1] = { text: transcript, isFinal };
+        } else {
+          newTranscripts.push({ text: transcript, isFinal });
+        }
       } else {
-        newTranscripts.push({ text: transcript, isFinal });
-        if (newTranscripts.length > MAX_VISIBLE_BUBBLES) {
-          newTranscripts = newTranscripts.slice(-MAX_VISIBLE_BUBBLES);
+        // Handle final result
+        if (newTranscripts.length > 0 && !newTranscripts[newTranscripts.length - 1].isFinal) {
+          // Replace last interim with final
+          newTranscripts[newTranscripts.length - 1] = { text: transcript, isFinal: true };
+        } else {
+          // Add new final result
+          newTranscripts.push({ text: transcript, isFinal: true });
         }
       }
       
-      if (isFinal && !processedResultsRef.current.has(resultId)) {
-        processedResultsRef.current.add(resultId);
-        setCollectedText(prevText => {
-          const newText = prevText + (prevText ? ' ' : '') + transcript;
-          if (autoCopyRef.current) {
-            navigator.clipboard.writeText(newText)
-              .then(() => {
-                if (textareaRef.current) {
-                  textareaRef.current.style.backgroundColor = '#4ade80';
-                  setTimeout(() => {
-                    if (textareaRef.current) {
-                      textareaRef.current.style.backgroundColor = '';
-                    }
-                  }, 200);
-                }
-              })
-              .catch(() => {
-                // Silently fail if auto-copy fails
-                // Only show errors for manual copy attempts
-              });
-          }
-          return newText;
-        });
+      // Maintain max bubbles
+      if (newTranscripts.length > MAX_VISIBLE_BUBBLES) {
+        newTranscripts = newTranscripts.slice(-MAX_VISIBLE_BUBBLES);
       }
+      
       return newTranscripts;
     });
-  }, [clearTranscripts]);
+  }, [clearTranscripts, collectedText, copyToClipboard]);
 
-  const handleAutoCopyChange = useCallback((e: ChangeEvent<HTMLInputElement>) => {
+  const handleAutoCopyChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const newAutoCopy = e.target.checked;
     setAutoCopy(newAutoCopy);
+    autoCopyRef.current = newAutoCopy;
     if (newAutoCopy && collectedText) {
-      copyToClipboard(collectedText, true);
+      copyToClipboard(collectedText);
     }
   }, [collectedText, copyToClipboard]);
-
-  const handleTextAreaChange = debounce((e: ChangeEvent<HTMLTextAreaElement>) => {
-    setCollectedText(e.target.value);
-  }, DEBOUNCE_DELAY);
-
-  const handleShowBubblesChange = useCallback((e: ChangeEvent<HTMLInputElement>) => {
-    setShowBubbles(e.target.checked);
-  }, []);
 
   const { isListening, startListening, stopListening } = useSpeechRecognition({
     onResult: handleSpeechResult,
     onError: handleSpeechError,
     onEnd: () => {
-      if (shouldStopRef.current) {
-        shouldStopRef.current = false;
-        stopListening();
-      }
+      setError(null);
     }
   });
+
+  useEffect(() => {
+    stopListeningRef.current = stopListening;
+  }, [stopListening]);
 
   useEffect(() => {
     autoCopyRef.current = autoCopy;
@@ -292,13 +294,13 @@ const SpeechToText: React.FC = () => {
         <textarea
           ref={textareaRef}
           value={collectedText}
-          onChange={handleTextAreaChange}
+          readOnly={true}
           className="w-full h-36 sm:h-48 p-3 sm:p-4 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none transition-colors text-sm sm:text-base"
           placeholder="Transcribed text will appear here..."
           aria-label="Transcribed text"
         />
         <button
-          onClick={() => copyToClipboard(collectedText, true)}
+          onClick={() => copyToClipboard(collectedText)}
           className="absolute right-2 bottom-2 p-2 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 bg-white dark:bg-gray-800 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
           title="Copy to clipboard"
           aria-label="Copy to clipboard"

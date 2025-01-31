@@ -50,9 +50,12 @@ export const useSpeechRecognition = ({
       recognition.interimResults = true;
 
       recognition.onresult = (event: SpeechRecognitionEvent) => {
-        const lastResult = event.results[event.results.length - 1];
-        const transcript = lastResult[0].transcript;
-        onResult(transcript, lastResult.isFinal);
+        // Get all results from this event
+        for (let i = event.resultIndex; i < event.results.length; i++) {
+          const result = event.results[i];
+          const transcript = result[0].transcript;
+          onResult(transcript, result.isFinal);
+        }
       };
 
       recognition.onerror = (event: Event) => {
