@@ -31,7 +31,7 @@ A modern, accessible, and production-ready speech-to-text application built with
 
 1. Clone the repository:
 ```bash
-git clone https://github.com/yourusername/web-speech-to-text.git
+git clone https://github.com/Sum1Solutions/web-speech-to-text.git
 cd web-speech-to-text
 ```
 
@@ -90,12 +90,12 @@ The `useSpeechRecognition` hook encapsulates all speech recognition logic, provi
 
 ### Error Handling
 
-- Comprehensive error boundary implementation
-- Detailed error messages for common issues:
-  - Microphone access denied
-  - Network errors
-  - Browser compatibility issues
-  - Recognition service errors
+- Comprehensive error boundary implementation.
+- Detailed and actionable error messages for common issues, including:
+  - Microphone access denied.
+  - Network errors.
+  - Browser compatibility issues (e.g., guidance for Microsoft Edge users to check OS language packs).
+  - Recognition service errors (e.g., clarifying that the app will attempt to auto-restart after a `no-speech` event).
 
 ### Accessibility
 
@@ -104,6 +104,23 @@ The `useSpeechRecognition` hook encapsulates all speech recognition logic, provi
 - Clear visual feedback
 - Screen reader friendly
 - High contrast mode support
+
+## Future Enhancements
+
+The robust continuous listening foundation of this application opens the door for several powerful future enhancements, turning it into a true ambient listening tool.
+
+### Ambient Listening & Conversational AI
+
+The current implementation provides a solid base for "always-on" ambient listening. The next steps will focus on transforming the captured text into structured, intelligent data.
+
+- **Speaker Diarization**: To support conversations with multiple participants, we plan to integrate speaker diarization. This will involve identifying and labeling who is speaking at any given time, which is crucial for accurately transcribing meetings or consultations. This will likely require a more advanced, server-side speech processing service, as it's beyond the capabilities of the standard Web Speech API.
+
+- **LLM Integration for Summarization & Analysis**: We plan to connect the transcribed text to a Large Language Model (LLM). This will unlock powerful features such as:
+    - **Real-time Summarization**: Generating concise summaries of long conversations or dictations.
+    - **Action Item Detection**: Identifying tasks, decisions, and follow-up items from the text.
+    - **Structured Data Extraction**: Converting unstructured speech into structured formats (e.g., filling out a form from a conversation).
+
+These enhancements will evolve the application from a simple speech-to-text utility into a powerful assistant for capturing and understanding spoken information.
 
 ## Browser Support
 
