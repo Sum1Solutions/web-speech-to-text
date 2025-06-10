@@ -45,7 +45,7 @@ const SpeechToText: React.FC = () => {
       }
     } catch (err) {
       console.error('Failed to copy text: ', err);
-      setError('Failed to copy text to clipboard');
+      setError('Failed to copy text to clipboard. Click the icon to manually copy. (I\'m still listening...)');
     }
   }, [collectedText]);
 
@@ -55,15 +55,20 @@ const SpeechToText: React.FC = () => {
 
   const handleSpeechError = useCallback((event: Event & { error: string; message: string }) => {
     console.error('Speech recognition error:', event.error);
+
+    const isEdge = /Edg/.test(navigator.userAgent);
+
     const errorMessages: Record<string, string> = {
       'not-allowed': 'Microphone access denied. Please allow microphone access and try again.',
       'service-not-allowed': 'Speech recognition service is not available. Please try again later.',
-      'no-speech': 'No speech detected. Click the button to restart listening.',
+      'no-speech': 'No speech detected. Click Stop Listening to stop listening!',
       'network': 'Network error occurred. Attempting to reconnect...',
       'aborted': 'Speech recognition was aborted. Click to restart.',
       'audio-capture': 'No microphone was found. Please verify your audio input.',
       'bad-grammar': 'Grammar error occurred in speech recognition.',
-      'language-not-supported': 'The selected language is not supported.',
+      'language-not-supported': isEdge
+        ? 'Language not supported. In Edge, this can happen if the required Windows language pack for speech recognition is not installed. Please check your OS language settings.'
+        : 'The selected language is not supported.',
       'start_error': 'Failed to start speech recognition. Please try again.'
     };
 

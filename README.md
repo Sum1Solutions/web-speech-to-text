@@ -6,7 +6,7 @@ A modern, accessible, and production-ready speech-to-text application built with
 
 - 🎤 Real-time speech-to-text conversion
 - 📋 Automatic clipboard copying
-- 🔄 Continuous speech recognition
+- 🔄 Robust continuous speech recognition with auto-restart for unexpected stops
 - 🗣️ Voice commands support
 - 🌙 Dark mode support
 - ♿ Full accessibility support
@@ -86,6 +86,7 @@ The `useSpeechRecognition` hook encapsulates all speech recognition logic, provi
 - Error handling with detailed error messages
 - Cleanup on component unmount
 - Voice command processing
+- Refactored to use refs for callbacks, ensuring stable operation and reliable voice command processing, especially with auto-restarts.
 
 ### Error Handling
 

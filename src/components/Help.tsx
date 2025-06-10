@@ -76,11 +76,11 @@ const Help: React.FC<HelpProps> = ({ isOpen, onClose }) => {
             <ul className="mt-2 space-y-2 text-sm dark:text-gray-100">
               <li className="flex items-start gap-2">
                 <CheckCircleIcon className="h-4 w-4 mt-0.5 flex-shrink-0" />
-                Speak clearly and at a natural pace
+                For best results, speak clearly and at a moderate pace. Very fast or unclear speech can sometimes be missed or transcribed inaccurately.
               </li>
               <li className="flex items-start gap-2">
                 <CheckCircleIcon className="h-4 w-4 mt-0.5 flex-shrink-0" />
-                Click the microphone button again to restart if recognition stops
+                Recognition aims to be continuous. If it stops unexpectedly, it will attempt to restart. You can also click the microphone button to manually restart.
               </li>
               <li className="flex items-start gap-2">
                 <CheckCircleIcon className="h-4 w-4 mt-0.5 flex-shrink-0" />

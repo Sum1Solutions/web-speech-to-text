@@ -27,13 +27,30 @@ export const useSpeechRecognition = ({
   onError,
   onEnd
 }: UseSpeechRecognitionProps) => {
+  const onResultRef = useRef(onResult);
+  const onErrorRef = useRef(onError);
+  const onEndRef = useRef(onEnd);
+
+  useEffect(() => {
+    onResultRef.current = onResult;
+  }, [onResult]);
+
+  useEffect(() => {
+    onErrorRef.current = onError;
+  }, [onError]);
+
+  useEffect(() => {
+    onEndRef.current = onEnd;
+  }, [onEnd]);
   const [isListening, setIsListening] = useState(false);
   const recognitionRef = useRef<SpeechRecognition | null>(null);
+  const manuallyStoppedRef = useRef(false);
 
   const stopListening = useCallback(() => {
     if (recognitionRef.current) {
+      manuallyStoppedRef.current = true;
       recognitionRef.current.stop();
-      setIsListening(false);
+      // setIsListening(false) will be handled by the onend event to correctly reflect the recognition state
     }
   }, []);
 
@@ -48,26 +65,36 @@ export const useSpeechRecognition = ({
 
       recognition.continuous = true;
       recognition.interimResults = true;
+      recognition.lang = 'en-us'; // Explicitly set language to US English (lowercase)
 
       recognition.onresult = (event: SpeechRecognitionEvent) => {
         // Get all results from this event
         for (let i = event.resultIndex; i < event.results.length; i++) {
           const result = event.results[i];
           const transcript = result[0].transcript;
-          onResult(transcript, result.isFinal);
+          onResultRef.current(transcript, result.isFinal);
         }
       };
 
       recognition.onerror = (event: Event) => {
         const errorEvent = event as Event & { error: string; message: string };
-        onError(errorEvent);
+        onErrorRef.current(errorEvent);
       };
 
       recognition.onend = () => {
-        setIsListening(false);
-        onEnd();
+        setIsListening(false); // Always update listening state when recognition actually ends
+        if (!manuallyStoppedRef.current) {
+          // If recognition ended for reasons other than an explicit stop (e.g., browser timeout, end of long speech segment)
+          console.log('Speech recognition ended unexpectedly, attempting to restart for continuous listening...');
+          startListening(); // Attempt to restart to maintain continuous listening
+        } else {
+          // This was an explicit stop by the user
+          onEndRef.current(); // Call the original onEnd callback provided by the parent component
+          manuallyStoppedRef.current = false; // Reset flag for the next time recognition starts
+        }
       };
 
+      manuallyStoppedRef.current = false; // Reset manual stop flag each time listening starts
       recognition.start();
       recognitionRef.current = recognition;
       setIsListening(true);
@@ -76,13 +103,16 @@ export const useSpeechRecognition = ({
       const errorEvent = new Event('error') as Event & { error: string; message: string };
       errorEvent.error = 'start_error';
       errorEvent.message = error instanceof Error ? error.message : 'Failed to start speech recognition';
-      onError(errorEvent);
+      onErrorRef.current(errorEvent);
     }
-  }, [onResult, onError, onEnd]);
+  }, []); // Dependencies are now empty as props are accessed via refs
 
   useEffect(() => {
     return () => {
       if (recognitionRef.current) {
+        // Ensure that if the component unmounts or hook re-runs, stopping recognition is treated as a manual stop
+        // to prevent auto-restart attempts during cleanup.
+        manuallyStoppedRef.current = true; 
         recognitionRef.current.stop();
       }
     };
